@@ -1,0 +1,711 @@
+// NBA Analytics Dashboard — Prisma Schema
+// Designed for all 30 NBA teams with full box-score, shot-chart, lineup, and standings support.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ──────────────────────────────────────────────
+// Enums
+// ──────────────────────────────────────────────
+
+enum ShotResult {
+  MADE
+  MISSED
+}
+
+enum ShotType {
+  TWO_POINTER
+  THREE_POINTER
+}
+
+enum HomeAway {
+  HOME
+  AWAY
+}
+
+enum WinLoss {
+  W
+  L
+}
+
+enum Conference {
+  EAST
+  WEST
+}
+
+enum Division {
+  ATLANTIC
+  CENTRAL
+  SOUTHEAST
+  NORTHWEST
+  PACIFIC
+  SOUTHWEST
+}
+
+// ──────────────────────────────────────────────
+// Team
+// ──────────────────────────────────────────────
+
+model Team {
+  id           String   @id                       // NBA team ID e.g. "1610612747"
+  abbreviation String   @unique                   // e.g. "LAL"
+  name         String                             // e.g. "Los Angeles Lakers"
+  city         String                             // e.g. "Los Angeles"
+  nickname     String                             // e.g. "Lakers"
+  conference   Conference
+  division     Division
+  logoUrl      String?
+  primaryColor String?                            // hex e.g. "#552583"
+  secondaryColor String?                          // hex e.g. "#FDB927"
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  players              Player[]
+  homeBoxScores        GameBoxScore[]          @relation("HomeTeamBoxScores")
+  awayBoxScores        GameBoxScore[]          @relation("AwayTeamBoxScores")
+  playerGameLogs       PlayerGameLog[]
+  playerSeasonStats    PlayerSeasonStats[]
+  teamSeasonStats      TeamSeasonStats[]
+  teamGameEfficiencies TeamGameEfficiency[]
+  efficiencySnapshots  TeamEfficiencySnapshot[]
+  shotCharts           ShotChart[]
+  lineupStats          LineupStats[]
+  standings            Standing[]
+
+  @@index([conference])
+  @@index([division])
+}
+
+// ──────────────────────────────────────────────
+// Player
+// ──────────────────────────────────────────────
+
+model Player {
+  id             String    @id                   // NBA player ID e.g. "2544" (LeBron)
+  firstName      String
+  lastName       String
+  fullName       String                          // "LeBron James"
+  birthDate      DateTime?
+  height         String?                         // e.g. "6-9"
+  weight         Int?                            // lbs
+  position       String?                         // e.g. "F", "G-F"
+  jersey         String?                         // jersey number as string
+  isActive       Boolean   @default(true)
+  fromYear       Int?                            // first NBA season start year
+  toYear         Int?                            // last/current NBA season start year
+  draftYear      Int?
+  draftRound     Int?
+  draftPick      Int?
+  country        String?
+  school         String?
+  headshotUrl    String?
+
+  // Current team (nullable for free agents)
+  teamId String?
+  team   Team?   @relation(fields: [teamId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  playerGameLogs    PlayerGameLog[]
+  playerSeasonStats PlayerSeasonStats[]
+  shotCharts        ShotChart[]
+
+  @@index([teamId])
+  @@index([lastName])
+  @@index([isActive])
+}
+
+// ──────────────────────────────────────────────
+// Season
+// ──────────────────────────────────────────────
+
+model Season {
+  id          String   @id                       // e.g. "2025-26"
+  startYear   Int                                // e.g. 2025
+  endYear     Int                                // e.g. 2026
+  displayName String                             // e.g. "2025-26 Season"
+  startDate   DateTime?
+  endDate     DateTime?
+  isCurrent   Boolean  @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  gameBoxScores        GameBoxScore[]
+  playerGameLogs       PlayerGameLog[]
+  playerSeasonStats    PlayerSeasonStats[]
+  teamSeasonStats      TeamSeasonStats[]
+  teamGameEfficiencies TeamGameEfficiency[]
+  efficiencySnapshots  TeamEfficiencySnapshot[]
+  shotCharts           ShotChart[]
+  lineupStats          LineupStats[]
+  standings            Standing[]
+
+  @@index([isCurrent])
+}
+
+// ──────────────────────────────────────────────
+// GameBoxScore — team-level per-game stats
+// ──────────────────────────────────────────────
+
+model GameBoxScore {
+  id        String   @id @default(cuid())
+  gameId    String                               // NBA game ID e.g. "0022500001"
+  gameDate  DateTime
+  season    String                               // "2025-26"
+  seasonId  String                               // FK to Season
+
+  homeTeamId String
+  awayTeamId String
+  homeTeam   Team   @relation("HomeTeamBoxScores", fields: [homeTeamId], references: [id])
+  awayTeam   Team   @relation("AwayTeamBoxScores", fields: [awayTeamId], references: [id])
+
+  // Home team stats
+  homePoints       Int
+  homeFieldGoals   Int       // FGM
+  homeFieldGoalAtt Int       // FGA
+  homeFieldGoalPct Float?    // 0.0–1.0
+  homeThreePointers   Int    // 3PM
+  homeThreePointAtt   Int    // 3PA
+  homeThreePointPct   Float? // 0.0–1.0
+  homeFreeThrows      Int    // FTM
+  homeFreeThrowAtt    Int    // FTA
+  homeFreeThrowPct    Float? // 0.0–1.0
+  homeReboundsOff     Int?
+  homeReboundsDef     Int?
+  homeReboundsTotal   Int
+  homeAssists         Int
+  homeSteals          Int
+  homeBlocks          Int
+  homeTurnovers       Int
+  homePersonalFouls   Int?
+  homeFastBreakPts    Int?
+  homePtsInPaint      Int?
+  homePtsOffTurnovers Int?
+  homeSecondChancePts Int?
+
+  // Away team stats
+  awayPoints       Int
+  awayFieldGoals   Int
+  awayFieldGoalAtt Int
+  awayFieldGoalPct Float?
+  awayThreePointers   Int
+  awayThreePointAtt   Int
+  awayThreePointPct   Float?
+  awayFreeThrows      Int
+  awayFreeThrowAtt    Int
+  awayFreeThrowPct    Float?
+  awayReboundsOff     Int?
+  awayReboundsDef     Int?
+  awayReboundsTotal   Int
+  awayAssists         Int
+  awaySteals          Int
+  awayBlocks          Int
+  awayTurnovers       Int
+  awayPersonalFouls   Int?
+  awayFastBreakPts    Int?
+  awayPtsInPaint      Int?
+  awayPtsOffTurnovers Int?
+  awaySecondChancePts Int?
+
+  // Game metadata
+  arena       String?
+  attendance  Int?
+  isPlayoff   Boolean @default(false)
+  seriesId    String?                            // for playoff series grouping
+
+  seasonRef Season @relation(fields: [seasonId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  playerGameLogs       PlayerGameLog[]
+  teamGameEfficiencies TeamGameEfficiency[]
+  shotCharts           ShotChart[]
+
+  @@unique([gameId])
+  @@index([gameDate])
+  @@index([season])
+  @@index([homeTeamId])
+  @@index([awayTeamId])
+  @@index([isPlayoff])
+}
+
+// ──────────────────────────────────────────────
+// PlayerGameLog — individual per-game stats
+// ──────────────────────────────────────────────
+
+model PlayerGameLog {
+  id       String   @id @default(cuid())
+  playerId String
+  teamId   String
+  gameId   String                                // FK to GameBoxScore.gameId
+  season   String                                // "2025-26"
+  seasonId String                                // FK to Season
+  gameDate DateTime
+  homeAway HomeAway
+  result   WinLoss
+
+  // Minutes
+  minutes      Float?                            // decimal minutes e.g. 35.5
+  minutesStr   String?                           // "35:30" display format
+
+  // Traditional box
+  points          Int      @default(0)
+  fieldGoals      Int      @default(0)           // FGM
+  fieldGoalAtt    Int      @default(0)           // FGA
+  fieldGoalPct    Float?                         // 0.0–1.0
+  threePointers   Int      @default(0)           // 3PM
+  threePointAtt   Int      @default(0)           // 3PA
+  threePointPct   Float?                         // 0.0–1.0
+  freeThrows      Int      @default(0)           // FTM
+  freeThrowAtt    Int      @default(0)           // FTA
+  freeThrowPct    Float?                         // 0.0–1.0
+  reboundsOff     Int      @default(0)
+  reboundsDef     Int      @default(0)
+  reboundsTotal   Int      @default(0)
+  assists         Int      @default(0)
+  steals          Int      @default(0)
+  blocks          Int      @default(0)
+  turnovers       Int      @default(0)
+  personalFouls   Int      @default(0)
+  plusMinus        Float?                         // +/- for the game
+
+  // Advanced per-game stats (nullable — may not be available for all games)
+  offRating       Float?                         // Offensive rating
+  defRating       Float?                         // Defensive rating
+  netRating       Float?                         // Net rating
+  assistPct       Float?                         // AST%
+  reboundPct      Float?                         // REB%
+  trueShootingPct Float?                         // TS%
+  effectiveFgPct  Float?                         // eFG%
+  usageRate       Float?                         // USG%
+  pace            Float?
+  pir             Float?                         // Performance Index Rating
+
+  // Flags
+  started    Boolean @default(false)             // did player start?
+  dnp        Boolean @default(false)             // did not play
+  dnpReason  String?                             // "REST", "INJURY", etc.
+
+  // Relations
+  player    Player       @relation(fields: [playerId], references: [id])
+  team      Team         @relation(fields: [teamId], references: [id])
+  game      GameBoxScore @relation(fields: [gameId], references: [gameId])
+  seasonRef Season       @relation(fields: [seasonId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([playerId, gameId, teamId])
+  @@index([playerId])
+  @@index([teamId])
+  @@index([gameId])
+  @@index([season])
+  @@index([gameDate])
+  @@index([playerId, season])
+}
+
+// ──────────────────────────────────────────────
+// PlayerSeasonStats — aggregated season averages
+// ──────────────────────────────────────────────
+
+model PlayerSeasonStats {
+  id       String @id @default(cuid())
+  playerId String
+  teamId   String
+  season   String                                // "2025-26"
+  seasonId String                                // FK to Season
+
+  gamesPlayed     Int    @default(0)
+  gamesStarted    Int    @default(0)
+  minutesPerGame  Float?
+
+  // Per-game averages
+  pointsPerGame        Float?
+  fieldGoalsPerGame    Float?
+  fieldGoalAttPerGame  Float?
+  fieldGoalPct         Float?
+  threePointersPerGame Float?
+  threePointAttPerGame Float?
+  threePointPct        Float?
+  freeThrowsPerGame    Float?
+  freeThrowAttPerGame  Float?
+  freeThrowPct         Float?
+  reboundsOffPerGame   Float?
+  reboundsDefPerGame   Float?
+  reboundsPerGame      Float?
+  assistsPerGame       Float?
+  stealsPerGame        Float?
+  blocksPerGame        Float?
+  turnoversPerGame     Float?
+  foulsPerGame         Float?
+  plusMinusPerGame     Float?
+
+  // Totals
+  totalPoints     Int?
+  totalRebounds   Int?
+  totalAssists    Int?
+  totalSteals     Int?
+  totalBlocks     Int?
+  totalTurnovers  Int?
+
+  // Advanced season averages
+  trueShootingPct Float?
+  effectiveFgPct  Float?
+  usageRate       Float?
+  assistPct       Float?
+  reboundPct      Float?
+  offRating       Float?
+  defRating       Float?
+  netRating       Float?
+  per             Float?                         // Player Efficiency Rating
+  winShares       Float?
+  boxPlusMinus    Float?                         // BPM
+  vorp            Float?                         // Value Over Replacement Player
+
+  // Relations
+  player    Player @relation(fields: [playerId], references: [id])
+  team      Team   @relation(fields: [teamId], references: [id])
+  seasonRef Season @relation(fields: [seasonId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([playerId, teamId, season])
+  @@index([playerId])
+  @@index([teamId])
+  @@index([season])
+  @@index([playerId, season])
+}
+
+// ──────────────────────────────────────────────
+// TeamSeasonStats — team efficiency metrics per season
+// ──────────────────────────────────────────────
+
+model TeamSeasonStats {
+  id       String @id @default(cuid())
+  teamId   String
+  season   String                                // "2025-26"
+  seasonId String                                // FK to Season
+
+  gamesPlayed Int @default(0)
+  wins        Int @default(0)
+  losses      Int @default(0)
+  winPct      Float?
+
+  // Per-game averages
+  pointsPerGame      Float?
+  oppPointsPerGame   Float?                      // opponent PPG
+  fieldGoalPct       Float?
+  threePointPct      Float?
+  freeThrowPct       Float?
+  reboundsPerGame    Float?
+  assistsPerGame     Float?
+  stealsPerGame      Float?
+  blocksPerGame      Float?
+  turnoversPerGame   Float?
+
+  // Advanced team metrics
+  offRating          Float?                      // Offensive rating (pts per 100 poss)
+  defRating          Float?                      // Defensive rating (pts allowed per 100 poss)
+  netRating          Float?                      // Net rating
+  pace               Float?                      // Possessions per 48 min
+  effectiveFgPct     Float?
+  trueShootingPct    Float?
+  turnoverPct        Float?
+  offReboundPct      Float?
+  freeThrowRate      Float?                      // FTA/FGA
+  oppEffectiveFgPct  Float?
+  oppTurnoverPct     Float?
+  oppFreeThrowRate   Float?
+
+  // Scoring breakdown
+  fastBreakPtsPerGame    Float?
+  ptsInPaintPerGame      Float?
+  ptsOffTurnoversPerGame Float?
+  secondChancePtsPerGame Float?
+
+  // Relations
+  team      Team   @relation(fields: [teamId], references: [id])
+  seasonRef Season @relation(fields: [seasonId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([teamId, season])
+  @@index([teamId])
+  @@index([season])
+}
+
+// ──────────────────────────────────────────────
+// TeamGameEfficiency — per-game estimated ratings
+// ──────────────────────────────────────────────
+
+model TeamGameEfficiency {
+  id       String @id @default(cuid())
+  teamId   String
+  gameId   String                                // FK to GameBoxScore.gameId
+  season   String                                // "2025-26"
+  seasonId String                                // FK to Season
+  gameDate DateTime
+
+  // Estimated per-game efficiency
+  offRating Float?                               // Estimated OffRtg for this game
+  defRating Float?                               // Estimated DefRtg for this game
+  netRating Float?                               // offRating - defRating
+  pace      Float?                               // Estimated possessions per 48
+
+  // Possessions estimate
+  possessions Float?
+
+  // Result context
+  result    WinLoss?
+  homeAway  HomeAway?
+
+  // Relations
+  team      Team         @relation(fields: [teamId], references: [id])
+  game      GameBoxScore @relation(fields: [gameId], references: [gameId])
+  seasonRef Season       @relation(fields: [seasonId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([teamId, gameId])
+  @@index([teamId])
+  @@index([gameId])
+  @@index([season])
+  @@index([gameDate])
+  @@index([teamId, season])
+}
+
+// ──────────────────────────────────────────────
+// TeamEfficiencySnapshot — official windowed ratings from LeagueDashTeamStats
+// ──────────────────────────────────────────────
+
+model TeamEfficiencySnapshot {
+  id           String   @id @default(cuid())
+  teamId       String
+  season       String                            // "2025-26"
+  seasonId     String                            // FK to Season
+  window       String                            // e.g. "L5", "L10", "L20", "Season"
+  snapshotDate DateTime                          // date the snapshot was captured
+
+  // Official windowed ratings
+  offRating       Float?
+  defRating       Float?
+  netRating       Float?
+  pace            Float?
+
+  // Record in window
+  wins   Int?
+  losses Int?
+  winPct Float?
+
+  // Four Factors style
+  effectiveFgPct    Float?
+  turnoverPct       Float?
+  offReboundPct     Float?
+  freeThrowRate     Float?
+  oppEffectiveFgPct Float?
+  oppTurnoverPct    Float?
+  oppOffReboundPct  Float?
+  oppFreeThrowRate  Float?
+
+  // Relations
+  team      Team   @relation(fields: [teamId], references: [id])
+  seasonRef Season @relation(fields: [seasonId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([teamId, season, window, snapshotDate])
+  @@index([teamId])
+  @@index([season])
+  @@index([snapshotDate])
+  @@index([teamId, season, window])
+}
+
+// ──────────────────────────────────────────────
+// ShotChart — location-based shot data
+// ──────────────────────────────────────────────
+
+model ShotChart {
+  id       String @id @default(cuid())
+  playerId String
+  teamId   String
+  gameId   String                                // FK to GameBoxScore.gameId
+  season   String                                // "2025-26"
+  seasonId String                                // FK to Season
+
+  // Shot location (NBA coordinate system: court origin at basket)
+  locX      Float                                // x-coordinate
+  locY      Float                                // y-coordinate
+
+  // Shot metadata
+  shotZone      String?                          // e.g. "Restricted Area", "Mid-Range", "Above the Break 3"
+  shotZoneArea  String?                          // e.g. "Center(C)", "Left Side(L)", "Right Side(R)"
+  shotZoneRange String?                          // e.g. "Less Than 8 ft.", "8-16 ft.", "24+ ft."
+  shotDistance   Int?                            // distance in feet
+  shotType      ShotType                         // TWO_POINTER or THREE_POINTER
+  shotResult    ShotResult                       // MADE or MISSED
+  actionType    String?                          // e.g. "Driving Layup", "Jump Shot", "Dunk"
+  period        Int?                             // quarter (1-4, 5+ for OT)
+  gameClock     String?                          // e.g. "9:45"
+  shotValue     Int?                             // 2 or 3
+
+  // Relations
+  player    Player       @relation(fields: [playerId], references: [id])
+  team      Team         @relation(fields: [teamId], references: [id])
+  game      GameBoxScore @relation(fields: [gameId], references: [gameId])
+  seasonRef Season       @relation(fields: [seasonId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([playerId])
+  @@index([teamId])
+  @@index([gameId])
+  @@index([season])
+  @@index([playerId, season])
+  @@index([teamId, season])
+  @@index([shotZone])
+  @@index([shotResult])
+}
+
+// ──────────────────────────────────────────────
+// LineupStats — lineup combination performance
+// ──────────────────────────────────────────────
+
+model LineupStats {
+  id       String @id @default(cuid())
+  teamId   String
+  season   String                                // "2025-26"
+  seasonId String                                // FK to Season
+
+  // Lineup identification — 5 player IDs stored in sorted order
+  player1Id String
+  player2Id String
+  player3Id String
+  player4Id String
+  player5Id String
+  lineupKey String                               // sorted dash-joined IDs for dedup: "101-202-303-404-505"
+
+  // Volume
+  gamesPlayed  Int    @default(0)
+  totalMinutes Float  @default(0)
+
+  // Per-possession / per-100 stats
+  offRating    Float?
+  defRating    Float?
+  netRating    Float?
+  pace         Float?
+
+  // Totals while lineup on court
+  points          Int?
+  oppPoints       Int?
+  fieldGoals      Int?
+  fieldGoalAtt    Int?
+  fieldGoalPct    Float?
+  threePointers   Int?
+  threePointAtt   Int?
+  threePointPct   Float?
+  freeThrows      Int?
+  freeThrowAtt    Int?
+  freeThrowPct    Float?
+  rebounds        Int?
+  assists         Int?
+  steals          Int?
+  blocks          Int?
+  turnovers       Int?
+  plusMinus        Float?
+
+  // Relations
+  team      Team   @relation(fields: [teamId], references: [id])
+  seasonRef Season @relation(fields: [seasonId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([teamId, season, lineupKey])
+  @@index([teamId])
+  @@index([season])
+  @@index([teamId, season])
+  @@index([lineupKey])
+  @@index([netRating])
+  @@index([totalMinutes])
+}
+
+// ──────────────────────────────────────────────
+// Standing — league standings
+// ──────────────────────────────────────────────
+
+model Standing {
+  id       String   @id @default(cuid())
+  teamId   String
+  season   String                                // "2025-26"
+  seasonId String                                // FK to Season
+  asOfDate DateTime                              // snapshot date
+
+  // Record
+  wins     Int   @default(0)
+  losses   Int   @default(0)
+  winPct   Float @default(0)
+  gamesBehind Float @default(0)
+
+  // Streaks and recent form
+  streak       String?                           // e.g. "W5", "L2"
+  lastTenWins  Int?
+  lastTenLosses Int?
+
+  // Ranking
+  conferenceRank Int?
+  divisionRank   Int?
+  leagueRank     Int?
+  playoffSeed    Int?
+
+  // Splits
+  homeWins    Int?
+  homeLosses  Int?
+  awayWins    Int?
+  awayLosses  Int?
+  confWins    Int?
+  confLosses  Int?
+  divWins     Int?
+  divLosses   Int?
+
+  // Clinch status
+  clinchStatus String?                           // e.g. "x" (playoff), "z" (best record), "e" (eliminated)
+
+  // Point differential
+  pointsFor     Float?
+  pointsAgainst Float?
+  pointDiff     Float?
+
+  // Relations
+  team      Team   @relation(fields: [teamId], references: [id])
+  seasonRef Season @relation(fields: [seasonId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([teamId, season, asOfDate])
+  @@index([teamId])
+  @@index([season])
+  @@index([asOfDate])
+  @@index([conferenceRank])
+  @@index([teamId, season])
+}
