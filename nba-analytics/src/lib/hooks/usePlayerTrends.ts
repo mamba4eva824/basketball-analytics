@@ -2,9 +2,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { apiFetch } from "./api";
 import type { TrendPoint, TrendMetric } from "@/lib/types";
+import { CURRENT_SEASON } from "@/lib/constants";
 
 export function usePlayerTrends(playerId: string, metric: TrendMetric, options?: { season?: string; window?: number }) {
-  const season = options?.season ?? "2025-26";
+  const season = options?.season ?? CURRENT_SEASON;
   const window = options?.window ?? 10;
   return useQuery({
     queryKey: ["playerTrends", playerId, metric, season, window],

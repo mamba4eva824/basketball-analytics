@@ -1,37 +1,71 @@
 "use client";
-import { createContext, useContext, useEffect, useState, useCallback } from "react";
+import { createContext, useCallback, useContext, useEffect, useSyncExternalStore } from "react";
+import { DARK_QUERY, STORAGE_KEY } from "./themeScript";
 
 type Theme = "light" | "dark";
+export type ThemePreference = Theme | "system";
 
 interface ThemeContextValue {
+  /** what is actually rendered */
   theme: Theme;
-  toggleTheme: () => void;
+  /** what the user chose; "system" follows the OS setting */
+  preference: ThemePreference;
+  setPreference: (p: ThemePreference) => void;
 }
 
 const ThemeContext = createContext<ThemeContextValue>({
   theme: "dark",
-  toggleTheme: () => {},
+  preference: "system",
+  setPreference: () => {},
 });
 
+function readPreference(): ThemePreference {
+  try {
+    const v = localStorage.getItem(STORAGE_KEY);
+    return v === "light" || v === "dark" ? v : "system";
+  } catch {
+    return "system";
+  }
+}
+
+// One external store covers both inputs: the saved preference and the OS colour scheme.
+const listeners = new Set<() => void>();
+const notify = () => listeners.forEach((l) => l());
+
+function subscribe(cb: () => void) {
+  listeners.add(cb);
+  const mq = window.matchMedia(DARK_QUERY);
+  mq.addEventListener("change", cb);
+  window.addEventListener("storage", cb); // other tabs
+  return () => {
+    listeners.delete(cb);
+    mq.removeEventListener("change", cb);
+    window.removeEventListener("storage", cb);
+  };
+}
+
+const systemPrefersDark = () => window.matchMedia(DARK_QUERY).matches;
+
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setTheme] = useState<Theme>("dark");
+  // Server snapshots match the pre-paint default (system → dark) to avoid hydration drift.
+  const preference = useSyncExternalStore(subscribe, readPreference, () => "system" as const);
+  const osDark = useSyncExternalStore(subscribe, systemPrefersDark, () => true);
+  const theme: Theme = preference === "system" ? (osDark ? "dark" : "light") : preference;
 
   useEffect(() => {
-    const isDark = document.documentElement.classList.contains("dark");
-    setTheme(isDark ? "dark" : "light");
-  }, []);
+    document.documentElement.classList.toggle("dark", theme === "dark");
+  }, [theme]);
 
-  const toggleTheme = useCallback(() => {
-    setTheme((prev) => {
-      const next = prev === "dark" ? "light" : "dark";
-      document.documentElement.classList.toggle("dark", next === "dark");
-      localStorage.setItem("theme", next);
-      return next;
-    });
+  const setPreference = useCallback((pref: ThemePreference) => {
+    try {
+      if (pref === "system") localStorage.removeItem(STORAGE_KEY);
+      else localStorage.setItem(STORAGE_KEY, pref);
+    } catch {}
+    notify();
   }, []);
 
   return (
-    <ThemeContext.Provider value={{ theme, toggleTheme }}>
+    <ThemeContext.Provider value={{ theme, preference, setPreference }}>
       {children}
     </ThemeContext.Provider>
   );
@@ -59,6 +93,10 @@ export function useThemeColors() {
       courtLineLight: "#333",
       courtLineMed: "#555",
       courtLineDetail: "#777",
+      // Validated with the dataviz palette checker against #0A0A0A (us/them, +/− net)
+      us: "#9b72d0",
+      them: "#d95926",
+      heat: "155, 114, 208",
     };
   }
   return {
@@ -76,5 +114,9 @@ export function useThemeColors() {
     courtLineLight: "#D4C8B8",
     courtLineMed: "#B8A898",
     courtLineDetail: "#A89888",
+    // Validated with the dataviz palette checker against #F5F0E8 (us/them, +/− net)
+    us: "#7A4BAA",
+    them: "#d4561f",
+    heat: "85, 37, 131",
   };
 }

@@ -18,6 +18,7 @@ import { PlayerGameLogTable } from "@/components/tables/GameLogTable";
 import { PageSkeleton } from "@/components/ui/LoadingSkeleton";
 import { ErrorDisplay } from "@/components/ui/ErrorDisplay";
 import type { TrendMetric, PlayerSeasonStats } from "@/lib/types";
+import { CURRENT_SEASON } from "@/lib/constants";
 
 function fmtPct(val: number | null | undefined): string {
   if (val === null || val === undefined) return "N/A";
@@ -43,14 +44,14 @@ export function PlayerDashboardClient({ playerId }: { playerId: string }) {
   } = usePlayer(playerId);
   const { data: seasonStats, isLoading: statsLoading } = usePlayerStats(
     playerId,
-    "2025-26"
+    CURRENT_SEASON
   ) as { data: PlayerSeasonStats | undefined; isLoading: boolean };
   const { data: recentGames } = usePlayerGamelog(playerId, {
     last: showAllGames ? undefined : 10,
   });
-  const { data: allGames } = usePlayerGamelog(playerId, { season: "2025-26" });
+  const { data: allGames } = usePlayerGamelog(playerId, { season: CURRENT_SEASON });
   const { data: trendData } = usePlayerTrends(playerId, trendMetric, {
-    season: "2025-26",
+    season: CURRENT_SEASON,
   });
 
   if (playerLoading || statsLoading) {

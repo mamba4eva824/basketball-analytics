@@ -1,7 +1,5 @@
-import { TeamDashboardClient } from "./teams/[teamId]/TeamDashboardClient";
-
-const LAKERS_ID = "1610612747";
+import { LakersDashboard } from "@/components/dashboard/LakersDashboard";
 
 export default function HomePage() {
-  return <TeamDashboardClient teamId={LAKERS_ID} />;
+  return <LakersDashboard />;
 }

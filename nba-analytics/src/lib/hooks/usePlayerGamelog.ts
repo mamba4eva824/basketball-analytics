@@ -2,8 +2,9 @@
 import { useQuery } from "@tanstack/react-query";
 import { apiFetch, apiFetchSingle } from "./api";
 import type { Player, PlayerWithTeamDetail, PlayerGameLog, PlayerSeasonStats, ShotChartEntry } from "@/lib/types";
+import { CURRENT_SEASON } from "@/lib/constants";
 
-const DEFAULT_SEASON = "2025-26";
+const DEFAULT_SEASON = CURRENT_SEASON;
 
 export function usePlayers(params?: { teamId?: string; search?: string; page?: number; pageSize?: number }) {
   return useQuery({

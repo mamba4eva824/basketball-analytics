@@ -10,6 +10,7 @@
  * Requires DATABASE_URL to be set in the environment (or in .env via dotenv).
  */
 
+import 'dotenv/config'
 import { PrismaClient, ShotResult, ShotType, HomeAway, WinLoss, Conference, Division } from '../src/generated/prisma/client'
 
 const prisma = new PrismaClient()
@@ -50,6 +51,8 @@ async function main() {
   log('Clearing existing data (child tables first)...')
 
   // Delete in reverse-dependency order
+  await prisma.playerInjury.deleteMany()
+  await prisma.scheduledGame.deleteMany()
   await prisma.shotChart.deleteMany()
   await prisma.lineupStats.deleteMany()
   await prisma.standing.deleteMany()

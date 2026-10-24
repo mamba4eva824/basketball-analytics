@@ -55,10 +55,11 @@ def fetch_lineup_stats(seasons=None, team_ids=None):
                     season_type_all_star='Regular Season',
                     per_mode_detailed='Totals',
                 )
-                if not dfs or len(dfs) == 0 or dfs[0].empty:
+                # Response has Overall + Lineups data sets; pick the one with GROUP_ID
+                lineup_df = next((d for d in (dfs or []) if 'GROUP_ID' in d.columns), None)
+                if lineup_df is None or lineup_df.empty:
                     continue
 
-                lineup_df = dfs[0]
                 for _, row in lineup_df.iterrows():
                     group_set = str(row.get('GROUP_SET', ''))
                     group_value = str(row.get('GROUP_VALUE', ''))
@@ -69,8 +70,8 @@ def fetch_lineup_stats(seasons=None, team_ids=None):
                     if not group_id or group_id == 'nan':
                         continue
 
-                    # group_id is dash-separated player IDs
-                    player_ids = sorted(group_id.replace(' ', '').split('-'))
+                    # group_id is dash-separated player IDs, e.g. "-203076-1628398-...-2544-"
+                    player_ids = sorted(p for p in group_id.replace(' ', '').split('-') if p)
                     if len(player_ids) != 5:
                         continue
 

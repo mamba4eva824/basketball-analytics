@@ -3,9 +3,11 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { usePlayers } from "@/lib/hooks/usePlayerGamelog";
+import { CURRENT_SEASON, FOCUS_TEAM_ID } from "@/lib/constants";
 
 const NAV_ITEMS = [
   { label: "Dashboard", href: "/", icon: "M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" },
+  { label: "Matchup", href: "/matchup", icon: "M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" },
   { label: "Standings", href: "/standings", icon: "M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" },
   { label: "Roster", href: "/roster", icon: "M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" },
   { label: "Games", href: "/games", icon: "M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" },
@@ -14,7 +16,7 @@ const NAV_ITEMS = [
 export function Sidebar() {
   const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(false);
-  const { data: playersData } = usePlayers({ teamId: "1610612747", pageSize: 8 });
+  const { data: playersData } = usePlayers({ teamId: FOCUS_TEAM_ID, pageSize: 8 });
 
   return (
     <>
@@ -47,7 +49,7 @@ export function Sidebar() {
             const isActive = pathname === item.href;
             return (
               <Link key={item.href} href={item.href} onClick={() => setIsOpen(false)}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 ${isActive ? "bg-lakers-purple/30 text-lakers-gold border border-lakers-purple/40" : "text-text-muted hover:text-text-primary hover:bg-input"}`}>
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 ${isActive ? "bg-lakers-purple/30 text-heading border border-lakers-purple/40" : "text-text-muted hover:text-text-primary hover:bg-input"}`}>
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d={item.icon} />
                 </svg>
@@ -65,8 +67,8 @@ export function Sidebar() {
               const isActive = pathname.startsWith(href);
               return (
                 <Link key={player.id} href={href} onClick={() => setIsOpen(false)}
-                  className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200 ${isActive ? "bg-lakers-purple/30 text-lakers-gold border border-lakers-purple/40" : "text-lakers-gold/80 hover:text-lakers-gold hover:bg-lakers-purple/10"}`}>
-                  <span className="inline-flex items-center justify-center w-7 h-7 rounded text-xs font-bold bg-lakers-purple/40 text-lakers-gold">{player.position ?? "—"}</span>
+                  className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200 ${isActive ? "bg-lakers-purple/30 text-heading border border-lakers-purple/40" : "text-text-secondary hover:text-heading hover:bg-lakers-purple/10"}`}>
+                  <span className="inline-flex items-center justify-center w-7 h-7 rounded text-xs font-bold bg-lakers-purple/20 text-heading">{player.position ?? "—"}</span>
                   <span className="text-sm">{player.fullName}</span>
                 </Link>
               );
@@ -77,7 +79,7 @@ export function Sidebar() {
         <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-border-theme">
           <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-lakers-purple/10">
             <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-            <span className="text-xs text-text-muted">2025-26 Season</span>
+            <span className="text-xs text-text-muted">{CURRENT_SEASON} Season</span>
           </div>
         </div>
       </aside>

@@ -1,28 +1,35 @@
 import { test, expect } from '@playwright/test';
-import { LAKERS_ID } from './fixtures/seed';
 
 test.describe('Navigation', () => {
-  test('home page loads', async ({ page }) => {
+  test('home page loads the Lakers dashboard', async ({ page }) => {
     await page.goto('/');
     await page.waitForLoadState('networkidle');
 
-    // The home page renders "NBA Analytics Dashboard" as the hero heading
-    await expect(page.locator('h1', { hasText: 'NBA Analytics Dashboard' })).toBeVisible();
-    // The "Select a Team" section should be present
-    await expect(page.locator('h2', { hasText: 'Select a Team' })).toBeVisible();
+    await expect(page.locator('h1', { hasText: 'Los Angeles Lakers' })).toBeVisible({ timeout: 15000 });
+    await expect(page.getByRole('heading', { name: 'New-look roster' })).toBeVisible();
   });
 
-  test('can navigate to team dashboard', async ({ page }) => {
+  test('can navigate to the matchup page', async ({ page }) => {
     await page.goto('/');
     await page.waitForLoadState('networkidle');
 
-    // The page has links to the Lakers (sidebar quick links + team grid)
-    const lakersLink = page.locator(`a[href="/teams/${LAKERS_ID}"]`).first();
-    await expect(lakersLink).toBeVisible();
-    await lakersLink.click();
+    const matchupLink = page.locator('a[href="/matchup"]').first();
+    await expect(matchupLink).toBeVisible();
+    await matchupLink.click();
 
-    await page.waitForURL(`**/teams/${LAKERS_ID}`, { timeout: 15000 });
-    expect(page.url()).toContain(`/teams/${LAKERS_ID}`);
+    await page.waitForURL('**/matchup', { timeout: 15000 });
+    await expect(page.getByText('Opponent scouting')).toBeVisible({ timeout: 15000 });
+    await expect(page.getByRole('heading', { name: 'Tale of the tape' })).toBeVisible();
+  });
+
+  test('theme control switches between light and dark', async ({ page }) => {
+    await page.goto('/');
+    await page.getByRole('radio', { name: 'Light' }).click();
+    await expect(page.locator('html')).not.toHaveClass(/\bdark\b/);
+    await page.getByRole('radio', { name: 'Dark' }).click();
+    await expect(page.locator('html')).toHaveClass(/\bdark\b/);
+    await page.reload();
+    await expect(page.locator('html')).toHaveClass(/\bdark\b/);
   });
 
   test('can navigate to standings', async ({ page }) => {

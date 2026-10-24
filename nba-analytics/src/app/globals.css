@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* `dark:` follows the .dark class set by ThemeToggle, not the OS preference */
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
   /* Lakers Palette (constant across themes) */
   --lakers-purple: #552583;
@@ -30,6 +33,7 @@
   --input-bg: rgba(0, 0, 0, 0.05);
   --scrollbar-track: #E8E0D4;
   --bar-bg: rgba(0, 0, 0, 0.06);
+  color-scheme: light;
 }
 
 :root.dark {
@@ -52,6 +56,7 @@
   --input-bg: rgba(255, 255, 255, 0.05);
   --scrollbar-track: #1a1a1a;
   --bar-bg: rgba(255, 255, 255, 0.1);
+  color-scheme: dark;
 }
 
 @theme inline {

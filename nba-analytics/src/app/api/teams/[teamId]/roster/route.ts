@@ -60,6 +60,7 @@ export async function GET(
         pointsPerGame: number | null
         reboundsPerGame: number | null
         assistsPerGame: number | null
+        plusMinusPerGame: number | null
       }
 
       const roster = (seasonStats as unknown as SeasonStatRow[]).map((s: SeasonStatRow) => ({
@@ -71,6 +72,7 @@ export async function GET(
           pointsPerGame: s.pointsPerGame,
           reboundsPerGame: s.reboundsPerGame,
           assistsPerGame: s.assistsPerGame,
+          plusMinusPerGame: s.plusMinusPerGame,
         },
       }))
 

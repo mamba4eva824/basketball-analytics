@@ -116,184 +116,198 @@ def fetch_player_details(player_ids):
     return updates
 
 
+PLAYER_SEASON_COLUMNS = [
+    'id', 'playerId', 'teamId', 'season', 'seasonId',
+    'gamesPlayed', 'gamesStarted', 'minutesPerGame',
+    'pointsPerGame', 'fieldGoalsPerGame', 'fieldGoalAttPerGame', 'fieldGoalPct',
+    'threePointersPerGame', 'threePointAttPerGame', 'threePointPct',
+    'freeThrowsPerGame', 'freeThrowAttPerGame', 'freeThrowPct',
+    'reboundsOffPerGame', 'reboundsDefPerGame', 'reboundsPerGame',
+    'assistsPerGame', 'stealsPerGame', 'blocksPerGame',
+    'turnoversPerGame', 'foulsPerGame', 'plusMinusPerGame',
+    'totalPoints', 'totalRebounds', 'totalAssists',
+    'totalSteals', 'totalBlocks', 'totalTurnovers',
+    'trueShootingPct', 'effectiveFgPct', 'usageRate',
+    'assistPct', 'reboundPct', 'offRating', 'defRating', 'netRating',
+    'per', 'winShares', 'boxPlusMinus', 'vorp',
+    'createdAt', 'updatedAt',
+]
+
+
+def transform_player_season_stats(base_df, adv_df, season, known_player_ids=None, known_team_ids=None):
+    """
+    Map league-wide LeagueDashPlayerStats (PerGame) Base + Advanced DataFrames to
+    PlayerSeasonStats rows. Rows whose player/team is not in known_player_ids /
+    known_team_ids (when given) are dropped for FK safety.
+    """
+    if base_df is None or base_df.empty:
+        return []
+
+    known_players = {str(p) for p in known_player_ids} if known_player_ids is not None else None
+    known_teams = {str(t) for t in known_team_ids} if known_team_ids is not None else None
+
+    adv_lookup = {}
+    if adv_df is not None and not adv_df.empty:
+        for _, arow in adv_df.iterrows():
+            key = (str(safe_int(arow.get('PLAYER_ID'))), str(safe_int(arow.get('TEAM_ID'))))
+            adv_lookup[key] = arow
+
+    rows = []
+    for _, row in base_df.iterrows():
+        pid, tid = safe_int(row.get('PLAYER_ID')), safe_int(row.get('TEAM_ID'))
+        if pid is None or tid is None:
+            continue
+        player_id, row_team_id = str(pid), str(tid)
+        if known_players is not None and player_id not in known_players:
+            continue
+        if known_teams is not None and row_team_id not in known_teams:
+            continue
+
+        season_row = {
+            'id': generate_cuid(),
+            'playerId': player_id,
+            'teamId': row_team_id,
+            'season': season,
+            'seasonId': season,
+            'gamesPlayed': safe_int(row.get('GP'), 0),
+            'gamesStarted': safe_int(row.get('GS'), 0),
+            'minutesPerGame': safe_float(row.get('MIN')),
+            'pointsPerGame': safe_float(row.get('PTS')),
+            'fieldGoalsPerGame': safe_float(row.get('FGM')),
+            'fieldGoalAttPerGame': safe_float(row.get('FGA')),
+            'fieldGoalPct': pct_to_decimal(row.get('FG_PCT')),
+            'threePointersPerGame': safe_float(row.get('FG3M')),
+            'threePointAttPerGame': safe_float(row.get('FG3A')),
+            'threePointPct': pct_to_decimal(row.get('FG3_PCT')),
+            'freeThrowsPerGame': safe_float(row.get('FTM')),
+            'freeThrowAttPerGame': safe_float(row.get('FTA')),
+            'freeThrowPct': pct_to_decimal(row.get('FT_PCT')),
+            'reboundsOffPerGame': safe_float(row.get('OREB')),
+            'reboundsDefPerGame': safe_float(row.get('DREB')),
+            'reboundsPerGame': safe_float(row.get('REB')),
+            'assistsPerGame': safe_float(row.get('AST')),
+            'stealsPerGame': safe_float(row.get('STL')),
+            'blocksPerGame': safe_float(row.get('BLK')),
+            'turnoversPerGame': safe_float(row.get('TOV')),
+            'foulsPerGame': safe_float(row.get('PF')),
+            'plusMinusPerGame': safe_float(row.get('PLUS_MINUS')),
+            # Totals: PerGame * GP
+            'totalPoints': None,
+            'totalRebounds': None,
+            'totalAssists': None,
+            'totalSteals': None,
+            'totalBlocks': None,
+            'totalTurnovers': None,
+            # Advanced (merged below)
+            'trueShootingPct': None,
+            'effectiveFgPct': None,
+            'usageRate': None,
+            'assistPct': None,
+            'reboundPct': None,
+            'offRating': None,
+            'defRating': None,
+            'netRating': None,
+            'per': None,
+            'winShares': None,
+            'boxPlusMinus': None,
+            'vorp': None,
+            'createdAt': datetime.utcnow(),
+            'updatedAt': datetime.utcnow(),
+        }
+
+        # Calculate totals from per-game * GP
+        gp = season_row['gamesPlayed'] or 0
+        if gp > 0:
+            season_row['totalPoints'] = safe_int((safe_float(row.get('PTS')) or 0) * gp)
+            season_row['totalRebounds'] = safe_int((safe_float(row.get('REB')) or 0) * gp)
+            season_row['totalAssists'] = safe_int((safe_float(row.get('AST')) or 0) * gp)
+            season_row['totalSteals'] = safe_int((safe_float(row.get('STL')) or 0) * gp)
+            season_row['totalBlocks'] = safe_int((safe_float(row.get('BLK')) or 0) * gp)
+            season_row['totalTurnovers'] = safe_int((safe_float(row.get('TOV')) or 0) * gp)
+
+        arow = adv_lookup.get((player_id, row_team_id))
+        if arow is not None:
+            season_row['trueShootingPct'] = pct_to_decimal(arow.get('TS_PCT'))
+            season_row['effectiveFgPct'] = pct_to_decimal(arow.get('EFG_PCT'))
+            season_row['usageRate'] = pct_to_decimal(arow.get('USG_PCT'))
+            season_row['assistPct'] = pct_to_decimal(arow.get('AST_PCT'))
+            season_row['reboundPct'] = pct_to_decimal(arow.get('REB_PCT'))
+            season_row['offRating'] = safe_float(arow.get('OFF_RATING'))
+            season_row['defRating'] = safe_float(arow.get('DEF_RATING'))
+            season_row['netRating'] = safe_float(arow.get('NET_RATING'))
+            # NOTE: this column holds NBA.com PIE (Player Impact Estimate, a 0-1 share),
+            # NOT Hollinger PER. The schema name is legacy; never label it "PER" in the UI.
+            season_row['per'] = safe_float(arow.get('PIE'))
+
+        rows.append(season_row)
+
+    return rows
+
+
 def fetch_player_season_stats(seasons=None, team_id=None):
     """
-    Fetch per-season averages for all players (or a specific team) using LeagueDashPlayerStats.
+    Fetch per-season averages for ALL players league-wide using LeagueDashPlayerStats
+    (Base + Advanced), so a newcomer's previous-season row with his old team is kept.
+    Rows are filtered to players in the Player table and teams in the Team table.
     Populates the PlayerSeasonStats table.
+
+    team_id is accepted for backwards compatibility but ignored: filtering by team would
+    drop other teams' rows for the players we track.
     """
     if seasons is None:
         seasons = BACKFILL_SEASONS
+    if team_id:
+        print(f"  [INFO] team_id={team_id} ignored; PlayerSeasonStats is always fetched league-wide")
 
     print(f"[PLAYER SEASON STATS] Fetching for {len(seasons)} season(s)...")
+
+    with get_db() as session:
+        known_player_ids = {r[0] for r in session.execute(text('SELECT "id" FROM "Player"'))}
+        known_team_ids = {r[0] for r in session.execute(text('SELECT "id" FROM "Team"'))}
 
     all_rows = []
     for season in seasons:
         print(f"  Fetching season {season}...")
         try:
-            kwargs = {
-                'season': season,
-                'per_mode_detailed': 'PerGame',
-                'measure_type_detailed_defense': 'Base',
-                'season_type_all_star': 'Regular Season',
-            }
-            dfs = safe_call(LeagueDashPlayerStats, **kwargs)
-            if not dfs or len(dfs) == 0 or dfs[0].empty:
+            base_dfs = safe_call(
+                LeagueDashPlayerStats,
+                season=season,
+                per_mode_detailed='PerGame',
+                measure_type_detailed_defense='Base',
+                season_type_all_star='Regular Season',
+            )
+            if not base_dfs or base_dfs[0].empty:
                 print(f"    No data for season {season}")
                 continue
-
-            stats_df = dfs[0]
-
-            # If team_id is specified, filter
-            if team_id:
-                stats_df = stats_df[stats_df['TEAM_ID'] == int(team_id)]
-
-            print(f"    Found {len(stats_df)} player-season records")
-
-            for _, row in stats_df.iterrows():
-                player_id = str(row.get('PLAYER_ID', ''))
-                row_team_id = str(row.get('TEAM_ID', ''))
-                if not player_id or not row_team_id:
-                    continue
-
-                season_row = {
-                    'id': generate_cuid(),
-                    'playerId': player_id,
-                    'teamId': row_team_id,
-                    'season': season,
-                    'seasonId': season,
-                    'gamesPlayed': safe_int(row.get('GP'), 0),
-                    'gamesStarted': safe_int(row.get('GS'), 0),
-                    'minutesPerGame': safe_float(row.get('MIN')),
-                    'pointsPerGame': safe_float(row.get('PTS')),
-                    'fieldGoalsPerGame': safe_float(row.get('FGM')),
-                    'fieldGoalAttPerGame': safe_float(row.get('FGA')),
-                    'fieldGoalPct': pct_to_decimal(row.get('FG_PCT')),
-                    'threePointersPerGame': safe_float(row.get('FG3M')),
-                    'threePointAttPerGame': safe_float(row.get('FG3A')),
-                    'threePointPct': pct_to_decimal(row.get('FG3_PCT')),
-                    'freeThrowsPerGame': safe_float(row.get('FTM')),
-                    'freeThrowAttPerGame': safe_float(row.get('FTA')),
-                    'freeThrowPct': pct_to_decimal(row.get('FT_PCT')),
-                    'reboundsOffPerGame': safe_float(row.get('OREB')),
-                    'reboundsDefPerGame': safe_float(row.get('DREB')),
-                    'reboundsPerGame': safe_float(row.get('REB')),
-                    'assistsPerGame': safe_float(row.get('AST')),
-                    'stealsPerGame': safe_float(row.get('STL')),
-                    'blocksPerGame': safe_float(row.get('BLK')),
-                    'turnoversPerGame': safe_float(row.get('TOV')),
-                    'foulsPerGame': safe_float(row.get('PF')),
-                    'plusMinusPerGame': safe_float(row.get('PLUS_MINUS')),
-                    # Totals: PerGame * GP
-                    'totalPoints': None,
-                    'totalRebounds': None,
-                    'totalAssists': None,
-                    'totalSteals': None,
-                    'totalBlocks': None,
-                    'totalTurnovers': None,
-                    # Advanced (will be updated separately)
-                    'trueShootingPct': None,
-                    'effectiveFgPct': None,
-                    'usageRate': None,
-                    'assistPct': None,
-                    'reboundPct': None,
-                    'offRating': None,
-                    'defRating': None,
-                    'netRating': None,
-                    'per': None,
-                    'winShares': None,
-                    'boxPlusMinus': None,
-                    'vorp': None,
-                    'createdAt': datetime.utcnow(),
-                    'updatedAt': datetime.utcnow(),
-                }
-
-                # Calculate totals from per-game * GP
-                gp = season_row['gamesPlayed'] or 0
-                if gp > 0:
-                    season_row['totalPoints'] = safe_int((safe_float(row.get('PTS')) or 0) * gp)
-                    season_row['totalRebounds'] = safe_int((safe_float(row.get('REB')) or 0) * gp)
-                    season_row['totalAssists'] = safe_int((safe_float(row.get('AST')) or 0) * gp)
-                    season_row['totalSteals'] = safe_int((safe_float(row.get('STL')) or 0) * gp)
-                    season_row['totalBlocks'] = safe_int((safe_float(row.get('BLK')) or 0) * gp)
-                    season_row['totalTurnovers'] = safe_int((safe_float(row.get('TOV')) or 0) * gp)
-
-                all_rows.append(season_row)
-
         except Exception as e:
             print(f"  [ERROR] Failed to fetch player stats for season {season}: {e}")
             continue
 
-    # Now fetch advanced stats to fill in TS%, eFG%, USG%, etc.
-    print("  Fetching advanced player stats...")
-    for season in seasons:
+        adv_df = None
         try:
-            kwargs = {
-                'season': season,
-                'per_mode_detailed': 'PerGame',
-                'measure_type_detailed_defense': 'Advanced',
-                'season_type_all_star': 'Regular Season',
-            }
-            dfs = safe_call(LeagueDashPlayerStats, **kwargs)
-            if not dfs or len(dfs) == 0 or dfs[0].empty:
-                continue
-
-            adv_df = dfs[0]
-            if team_id:
-                adv_df = adv_df[adv_df['TEAM_ID'] == int(team_id)]
-
-            # Build lookup: (player_id, team_id) -> advanced stats
-            adv_lookup = {}
-            for _, arow in adv_df.iterrows():
-                key = (str(arow.get('PLAYER_ID', '')), str(arow.get('TEAM_ID', '')))
-                adv_lookup[key] = arow
-
-            # Merge advanced into existing rows
-            for sr in all_rows:
-                if sr['season'] != season:
-                    continue
-                key = (sr['playerId'], sr['teamId'])
-                if key in adv_lookup:
-                    arow = adv_lookup[key]
-                    sr['trueShootingPct'] = pct_to_decimal(arow.get('TS_PCT'))
-                    sr['effectiveFgPct'] = pct_to_decimal(arow.get('EFG_PCT'))
-                    sr['usageRate'] = pct_to_decimal(arow.get('USG_PCT'))
-                    sr['assistPct'] = pct_to_decimal(arow.get('AST_PCT'))
-                    sr['reboundPct'] = pct_to_decimal(arow.get('REB_PCT'))
-                    sr['offRating'] = safe_float(arow.get('OFF_RATING'))
-                    sr['defRating'] = safe_float(arow.get('DEF_RATING'))
-                    sr['netRating'] = safe_float(arow.get('NET_RATING'))
-                    sr['per'] = safe_float(arow.get('PIE'))  # PIE is closest to PER available
-                    sr['winShares'] = None  # Not available from this endpoint
-                    sr['boxPlusMinus'] = None
-                    sr['vorp'] = None
-
-            print(f"    Merged advanced stats for season {season}")
-
+            adv_dfs = safe_call(
+                LeagueDashPlayerStats,
+                season=season,
+                per_mode_detailed='PerGame',
+                measure_type_detailed_defense='Advanced',
+                season_type_all_star='Regular Season',
+            )
+            if adv_dfs and not adv_dfs[0].empty:
+                adv_df = adv_dfs[0]
         except Exception as e:
             print(f"  [WARN] Could not fetch advanced stats for season {season}: {e}")
-            continue
+
+        rows = transform_player_season_stats(
+            base_dfs[0], adv_df, season, known_player_ids, known_team_ids,
+        )
+        print(f"    {len(rows)} of {len(base_dfs[0])} player-season records match Player/Team tables")
+        all_rows.extend(rows)
 
     # Upsert all rows
     if all_rows:
-        columns = [
-            'id', 'playerId', 'teamId', 'season', 'seasonId',
-            'gamesPlayed', 'gamesStarted', 'minutesPerGame',
-            'pointsPerGame', 'fieldGoalsPerGame', 'fieldGoalAttPerGame', 'fieldGoalPct',
-            'threePointersPerGame', 'threePointAttPerGame', 'threePointPct',
-            'freeThrowsPerGame', 'freeThrowAttPerGame', 'freeThrowPct',
-            'reboundsOffPerGame', 'reboundsDefPerGame', 'reboundsPerGame',
-            'assistsPerGame', 'stealsPerGame', 'blocksPerGame',
-            'turnoversPerGame', 'foulsPerGame', 'plusMinusPerGame',
-            'totalPoints', 'totalRebounds', 'totalAssists',
-            'totalSteals', 'totalBlocks', 'totalTurnovers',
-            'trueShootingPct', 'effectiveFgPct', 'usageRate',
-            'assistPct', 'reboundPct', 'offRating', 'defRating', 'netRating',
-            'per', 'winShares', 'boxPlusMinus', 'vorp',
-            'createdAt', 'updatedAt',
-        ]
         with get_db() as session:
             count = upsert_rows(
-                session, 'PlayerSeasonStats', all_rows, columns,
+                session, 'PlayerSeasonStats', all_rows, PLAYER_SEASON_COLUMNS,
                 ['playerId', 'teamId', 'season'],
                 exclude_from_update={'id', 'createdAt'},
             )

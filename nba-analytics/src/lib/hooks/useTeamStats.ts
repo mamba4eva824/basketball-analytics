@@ -2,8 +2,9 @@
 import { useQuery } from "@tanstack/react-query";
 import { apiFetch, apiFetchSingle } from "./api";
 import type { TeamDetail, TeamSeasonStats, GameBoxScore, RosterPlayer } from "@/lib/types";
+import { CURRENT_SEASON } from "@/lib/constants";
 
-const DEFAULT_SEASON = "2025-26";
+const DEFAULT_SEASON = CURRENT_SEASON;
 
 export function useTeam(teamId: string) {
   return useQuery({

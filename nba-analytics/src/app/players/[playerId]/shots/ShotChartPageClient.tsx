@@ -7,6 +7,7 @@ import { ShotChart } from "@/components/charts/ShotChart";
 import { StatCard } from "@/components/layout/StatCard";
 import { PageSkeleton } from "@/components/ui/LoadingSkeleton";
 import { ErrorDisplay } from "@/components/ui/ErrorDisplay";
+import { CURRENT_SEASON } from "@/lib/constants";
 
 export function ShotChartPageClient({ playerId }: { playerId: string }) {
   const { data: player, isLoading: playerLoading } = usePlayer(playerId);
@@ -94,7 +95,7 @@ export function ShotChartPageClient({ playerId }: { playerId: string }) {
         <h1 className="text-3xl font-bold text-heading">
           {player?.fullName ?? "Player"} Shot Chart
         </h1>
-        <p className="text-text-muted mt-1">2025-26 Regular Season</p>
+        <p className="text-text-muted mt-1">{CURRENT_SEASON} Regular Season</p>
       </div>
 
       {/* Summary Stats */}

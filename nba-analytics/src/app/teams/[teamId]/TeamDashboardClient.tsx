@@ -13,6 +13,7 @@ import { TeamGameLogTable } from "@/components/tables/GameLogTable";
 import { PlayerStatsTable } from "@/components/tables/PlayerStatsTable";
 import { PageSkeleton } from "@/components/ui/LoadingSkeleton";
 import { ErrorDisplay } from "@/components/ui/ErrorDisplay";
+import { CURRENT_SEASON } from "@/lib/constants";
 
 function fmtPct(val: number | null | undefined): string {
   if (val == null) return "N/A";
@@ -23,7 +24,7 @@ export function TeamDashboardClient({ teamId }: { teamId: string }) {
   const { data: team, isLoading: tL, error: tE } = useTeam(teamId);
   const { data: stats, isLoading: sL } = useTeamStats(teamId);
   const { data: recentGames } = useTeamGames(teamId, { last: 10 });
-  const { data: roster } = useTeamRoster(teamId, "2025-26");
+  const { data: roster } = useTeamRoster(teamId, CURRENT_SEASON);
   const { data: efficiency } = useTeamEfficiency(teamId);
 
   const chartRef = useRef<HTMLDivElement>(null);
@@ -41,14 +42,14 @@ export function TeamDashboardClient({ teamId }: { teamId: string }) {
     return [...recentGames].reverse().slice(-20);
   }, [recentGames]);
 
-  // Build +/- data from roster
+  // Real +/- per game from season stats (players with 5+ games)
   const plusMinusData = useMemo(() => {
     if (!roster) return [];
     return roster
-      .filter((p) => p.seasonStats && p.seasonStats.gamesPlayed >= 10)
+      .filter((p) => p.seasonStats && p.seasonStats.gamesPlayed >= 5 && p.seasonStats.plusMinusPerGame != null)
       .map((p) => ({
         name: p.fullName.split(" ").pop() ?? p.fullName,
-        plusMinus: (p.seasonStats?.pointsPerGame ?? 0) - 10, // approximation since per-game +/- may not be in roster stats
+        plusMinus: p.seasonStats!.plusMinusPerGame as number,
         playerId: p.id,
       }))
       .sort((a, b) => b.plusMinus - a.plusMinus)
@@ -324,7 +325,7 @@ export function TeamDashboardClient({ teamId }: { teamId: string }) {
       {plusMinusData.length > 0 && (
         <div className="glass-card p-6">
           <h3 className="text-lg text-heading mb-4">
-            Player Impact (PPG)
+            Player Impact (+/- per game)
           </h3>
           <PlusMinusBar data={plusMinusData} />
         </div>
