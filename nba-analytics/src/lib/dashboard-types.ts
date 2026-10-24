@@ -60,7 +60,8 @@ export interface PlayerLine {
   season: string;
   teamAbbr: string | null;
   gamesPlayed: number;
-  gamesStarted: number;
+  /** from game-log starter flags; null when they don't cover every game (e.g. last season) */
+  gamesStarted: number | null;
   minutes: number | null;
   points: number | null;
   rebounds: number | null;

@@ -170,6 +170,8 @@ def transform_player_season_stats(base_df, adv_df, season, known_player_ids=None
             'season': season,
             'seasonId': season,
             'gamesPlayed': safe_int(row.get('GP'), 0),
+            # LeagueDashPlayerStats has no GS column, so this is always 0; the API derives games
+            # started from PlayerGameLog.started instead (gamesStartedByPlayer).
             'gamesStarted': safe_int(row.get('GS'), 0),
             'minutesPerGame': safe_float(row.get('MIN')),
             'pointsPerGame': safe_float(row.get('PTS')),

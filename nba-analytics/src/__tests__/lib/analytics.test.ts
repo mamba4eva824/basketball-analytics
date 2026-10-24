@@ -9,7 +9,7 @@ import {
 import { rankTeams, rankProfiles } from '@/lib/analytics/ranks'
 import { normalCdf, projectGame, regress } from '@/lib/analytics/projection'
 import { fourFactorEdges, verdictFor } from '@/lib/analytics/matchup'
-import { classifyPlayer, newcomerMinutesShare, roleMinutes } from '@/lib/analytics/roster'
+import { classifyPlayer, gamesStartedByPlayer, newcomerMinutesShare, roleMinutes, startKey } from '@/lib/analytics/roster'
 import { gameRatings, rollingMean } from '@/lib/analytics/trend'
 import { absenceKind, plusMinusTrend } from '@/lib/analytics/plusMinus'
 import { summarizeForm, trendOf, trueShooting } from '@/lib/analytics/form'
@@ -315,6 +315,40 @@ describe('roster minutes', () => {
     const bench = roleMinutes({ minutes: 14, gamesPlayed: 3 }, { minutes: 12 })
     expect(injuredStar).toBeGreaterThan(bench)
     expect(roleMinutes({ minutes: 20, gamesPlayed: 8 }, { minutes: 34 })).toBe(20) // established role wins
+  })
+})
+
+describe('gamesStartedByPlayer', () => {
+  const LAL = 'lal'
+  const fiveStarters = (gameId: string, teamId: string) =>
+    Array.from({ length: 5 }, () => ({ gameId, teamId }))
+  const log = (playerId: string, gameId: string, started: boolean, season = '2026-27', teamId = LAL) =>
+    ({ playerId, teamId, season, gameId, started })
+
+  it('counts starts across flagged games', () => {
+    const starts = gamesStartedByPlayer(
+      [log('luka', 'g1', true), log('luka', 'g2', true), log('bench', 'g1', false), log('bench', 'g2', true)],
+      [...fiveStarters('g1', LAL), ...fiveStarters('g2', LAL)],
+    )
+    expect(starts.get(startKey('luka', LAL, '2026-27'))).toBe(2)
+    expect(starts.get(startKey('bench', LAL, '2026-27'))).toBe(1)
+  })
+  it('leaves a player out ("—") when any game lacks flagged starters or there are no logs', () => {
+    const starts = gamesStartedByPlayer(
+      [log('luka', 'g1', true), log('luka', 'g2', false), log('luka', 'g0', false, '2025-26', 'dal')],
+      fiveStarters('g1', LAL), // g2 not flagged yet; last season's game never flagged
+    )
+    expect(starts.has(startKey('luka', LAL, '2026-27'))).toBe(false)
+    expect(starts.has(startKey('luka', 'dal', '2025-26'))).toBe(false)
+    expect(starts.has(startKey('rookie', LAL, '2026-27'))).toBe(false)
+  })
+  it('counts a flagged game for one team, not the other', () => {
+    const starts = gamesStartedByPlayer(
+      [log('luka', 'g1', true), log('opp', 'g1', false, '2026-27', 'uta')],
+      [...fiveStarters('g1', LAL), { gameId: 'g1', teamId: 'uta' }],
+    )
+    expect(starts.get(startKey('luka', LAL, '2026-27'))).toBe(1)
+    expect(starts.has(startKey('opp', 'uta', '2026-27'))).toBe(false)
   })
 })
 

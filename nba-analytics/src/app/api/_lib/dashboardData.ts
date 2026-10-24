@@ -6,7 +6,7 @@ import { prisma } from '@/app/api/_lib/prisma'
 import { previousSeason, seasonStartYear } from '@/lib/constants'
 import { buildTeamProfiles, leagueBaseline, type GameRecord, type LeagueBaseline, type TeamProfile } from '@/lib/analytics/teamProfiles'
 import { RANKED_METRICS, rankProfiles, type TeamRanks } from '@/lib/analytics/ranks'
-import { classifyPlayer, roleMinutes } from '@/lib/analytics/roster'
+import { classifyPlayer, gamesStartedByPlayer, roleMinutes, startKey } from '@/lib/analytics/roster'
 import { summarizeForm, trendOf, type LogLine } from '@/lib/analytics/form'
 import { SMALL_SAMPLE_GAMES } from '@/lib/analytics/projection'
 import type {
@@ -266,12 +266,26 @@ export async function loadPlayerNames(ids: Iterable<string>): Promise<Map<string
 
 type SeasonStatsRow = Awaited<ReturnType<typeof prisma.playerSeasonStats.findMany>>[number]
 
-function toLine(s: SeasonStatsRow, teams: Map<string, TeamRefLite>): PlayerLine {
+/** Games started from game-log starter flags (see `gamesStartedByPlayer`), keyed by `startKey`. */
+export async function loadGamesStarted(playerIds: string[], seasons: string[]): Promise<Map<string, number>> {
+  if (!playerIds.length) return new Map()
+  const logs = await prisma.playerGameLog.findMany({
+    where: { playerId: { in: playerIds }, season: { in: seasons } },
+    select: { playerId: true, teamId: true, season: true, gameId: true, started: true },
+  })
+  const starters = await prisma.playerGameLog.findMany({
+    where: { gameId: { in: [...new Set(logs.map((l) => l.gameId))] }, started: true },
+    select: { gameId: true, teamId: true },
+  })
+  return gamesStartedByPlayer(logs, starters)
+}
+
+function toLine(s: SeasonStatsRow, teams: Map<string, TeamRefLite>, starts: Map<string, number>): PlayerLine {
   return {
     season: s.season,
     teamAbbr: teams.get(s.teamId)?.abbreviation ?? null,
     gamesPlayed: s.gamesPlayed,
-    gamesStarted: s.gamesStarted,
+    gamesStarted: starts.get(startKey(s.playerId, s.teamId, s.season)) ?? null,
     minutes: s.minutesPerGame,
     points: s.pointsPerGame,
     rebounds: s.reboundsPerGame,
@@ -309,9 +323,10 @@ export async function loadRoster(
   const prev = previousSeason(season)
   const players = await prisma.player.findMany({ where: { teamId, isActive: true } })
   const ids = players.map((p) => p.id)
-  const [stats, logs] = await Promise.all([
+  const [stats, logs, starts] = await Promise.all([
     prisma.playerSeasonStats.findMany({ where: { playerId: { in: ids }, season: { in: [season, prev] } } }),
     prisma.playerGameLog.findMany({ where: { teamId, season }, orderBy: { gameDate: 'asc' } }),
+    loadGamesStarted(ids, [season, prev]),
   ])
 
   const statsBy = new Map<string, SeasonStatsRow[]>()
@@ -360,8 +375,8 @@ export async function loadRoster(
     return {
       player: { id: p.id, fullName: p.fullName, position: p.position, jersey: p.jersey, headshotUrl: p.headshotUrl },
       status: classification.status,
-      current: cur ? toLine(cur, teams) : null,
-      baseline: base ? toLine(base, teams) : null,
+      current: cur ? toLine(cur, teams, starts) : null,
+      baseline: base ? toLine(base, teams, starts) : null,
       last5,
       pointsTrend: trendOf(last5.points, cur?.pointsPerGame ?? seasonForm.points),
       smallSample: gp < SMALL_SAMPLE_GAMES,

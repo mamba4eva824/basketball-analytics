@@ -11,6 +11,7 @@ type View = "season" | "baseline";
 
 const COLS: { key: keyof PlayerLine; label: string; fmt: (v: number | null) => string; title: string }[] = [
   { key: "gamesPlayed", label: "GP", fmt: (v) => fmtNum(v, 0), title: "Games played" },
+  { key: "gamesStarted", label: "GS", fmt: (v) => fmtNum(v, 0), title: "Games started (— when starters weren't recorded for every game)" },
   { key: "minutes", label: "MIN", fmt: (v) => fmtNum(v), title: "Minutes per game" },
   { key: "points", label: "PTS", fmt: (v) => fmtNum(v), title: "Points per game" },
   { key: "rebounds", label: "REB", fmt: (v) => fmtNum(v), title: "Rebounds per game" },

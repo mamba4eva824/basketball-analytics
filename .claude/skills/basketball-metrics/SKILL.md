@@ -65,6 +65,13 @@ in a tooltip ("box-score estimate").
 | `rookie`    | No previous-season row and (`fromYear` = current start year or `fromYear` null)  |
 | `new`       | No previous-season row but has earlier NBA seasons (returning from injury/overseas) |
 
+### Games started (`gamesStartedByPlayer`)
+
+`LeagueDashPlayerStats` has no GS column, so `PlayerSeasonStats.gamesStarted` is always 0 — never
+read it. Count `PlayerGameLog.started` per player/team/season instead. Starters are only flagged for
+focus-team games (both sides), so the count is shown only when every one of the player's games has
+5 flagged starters for their team; otherwise (other teams' games, last season) show "—".
+
 ## Player form (`form.ts`)
 
 - Last-N averages are simple means over games played (DNPs excluded).
@@ -122,4 +129,5 @@ factor (and our defense vs their offense):
 
 - On/off splits, tracking data, and real per-game possessions are not ingested.
 - `PlayerSeasonStats.per` actually holds NBA.com **PIE**; label it PIE.
+- `PlayerSeasonStats.gamesStarted` is always 0 (no GS in the endpoint); see "Games started".
 - Injury data is unofficial (ESPN) and may lag; always show its `fetchedAt` time.
