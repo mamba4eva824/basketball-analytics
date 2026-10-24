@@ -165,6 +165,19 @@ function simSide(offId: string, defId: string, poss: number, home: boolean): Sid
   }
 }
 
+/**
+ * Lakers availability by rotation slot and round, so the +/- tracker has absences to show:
+ * slot 2 misses 4 games mid-season and returns on a minutes limit; slot 7 is out for the last
+ * 2 games (matches the day-to-day injury seeded below); slot 0 rests once.
+ */
+function lakersAvailability(slot: number, round: number): 'normal' | 'out' | 'rest' | 'limited' {
+  if (slot === 2 && round >= 4 && round <= 7) return 'out'
+  if (slot === 2 && round === 8) return 'limited'
+  if (slot === 7 && round >= ROUNDS - 2 && round < ROUNDS) return 'out'
+  if (slot === 0 && round === 10) return 'rest'
+  return 'normal'
+}
+
 // ── Main ─────────────────────────────────────────────────────────────────────
 async function main() {
   console.log(`[demo-seed] Wiping database and seeding ${SEASON} (${ROUNDS} rounds played) + ${PREV} season stats`)
@@ -267,7 +280,12 @@ async function main() {
         const roster = rosterBy.get(teamId)!
         // Lakers rotate the 5th starter between slots 4 and 5 to show lineup tracking
         const swap = teamId === FOCUS_TEAM_ID && r % 3 === 2
-        const rotation = roster.filter((p) => SLOT_MIN[p.slot] > 0)
+        const avail = (p: DemoPlayer) => (teamId === FOCUS_TEAM_ID ? lakersAvailability(p.slot, r) : 'normal')
+        const rotation = roster.filter((p) => SLOT_MIN[p.slot] > 0 && !['out', 'rest'].includes(avail(p)))
+        // Starting five: the usual starters, with the first available bench players filling in
+        const preferred = roster.filter((p) => (swap ? p.slot < 4 || p.slot === 5 : p.slot < 5))
+        const starters = new Set(preferred.filter((p) => rotation.includes(p)).map((p) => p.id))
+        for (const p of rotation) if (starters.size < 5) starters.add(p.id)
         const weights = rotation.map((p) => SLOT_USG[p.slot] * between(0.7, 1.3))
         const wsum = weights.reduce((a, b) => a + b, 0)
         const split = (total: number) => {
@@ -286,8 +304,9 @@ async function main() {
           const fgmI = fg2m[i] + fg3m[i]
           const ftaI = Math.max(fta[i], ftm[i])
           const pts = 2 * fg2m[i] + 3 * fg3m[i] + ftm[i]
-          const minutes = Math.max(4, SLOT_MIN[p.slot] + between(-4, 4))
-          const started = swap ? (p.slot < 4 || p.slot === 5) : p.slot < 5
+          const limit = avail(p) === 'limited' ? 0.5 : 1 // first game back from injury
+          const minutes = Math.max(4, (SLOT_MIN[p.slot] + between(-4, 4)) * limit)
+          const started = starters.has(p.id)
           logRows.push({
             playerId: p.id, teamId, gameId, season: SEASON, seasonId: SEASON, gameDate,
             homeAway: isHome ? HomeAway.HOME : HomeAway.AWAY, result: margin > 0 ? WinLoss.W : WinLoss.L,
@@ -301,6 +320,14 @@ async function main() {
             plusMinus: Math.round(margin * (minutes / 48) + between(-6, 6)), started,
           })
         })
+        // A coach's-decision rest day is logged as a DNP row with a reason
+        for (const p of roster.filter((x) => avail(x) === 'rest')) {
+          logRows.push({
+            playerId: p.id, teamId, gameId, season: SEASON, seasonId: SEASON, gameDate,
+            homeAway: isHome ? HomeAway.HOME : HomeAway.AWAY, result: margin > 0 ? WinLoss.W : WinLoss.L,
+            minutes: 0, points: 0, plusMinus: null, dnp: true, dnpReason: 'Rest',
+          })
+        }
       }
     }
   })

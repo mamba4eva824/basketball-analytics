@@ -77,6 +77,27 @@ Group the focus team's games by the sorted set of 5 player IDs with `started = t
 in `PlayerGameLog`. Games without exactly 5 starters are skipped (and counted in
 `gamesMissingStarterData`). Report games, W-L, and avg point differential per unit.
 
+## Plus-minus trend (`plusMinus.ts`)
+
+Per-player +/- across the season, built so injuries don't distort it:
+
+- **Team-game axis.** Every team game is a slot: `played` (minutes > 0 and a +/- value),
+  `missed`, or `not-with-team` (on/before the player's last game for another team this
+  season — mid-season arrivals aren't charged with missed games).
+- **Missed games are gaps, never zeros.** The moving average covers the last N games
+  *played* (N = 5 or 10). Zero-filling would pull the line toward 0 during an absence
+  ("flattening"); a gap leaves it where the player's real level was.
+- **Per 36:** `36 · Σ(+/-) / Σ(minutes)` over the same window — minutes-weighted, so a
+  minutes-limited return game doesn't swing the average like a full game would.
+- **Absences** are contiguous missed slots. The trailing one is `ongoing`. Its `kind` is
+  `injury` only with evidence (injury report or an injury-like DNP reason), `other` for
+  rest/coach's decision, else `unknown`: a box score can't tell an injury from a
+  healthy scratch, so the UI says "Missed", not "Out", without evidence.
+- **Trend:** last-window average vs season average, ±3 points (not a ratio — +/- crosses 0).
+  Needs more games played than the window.
+- +/- is lineup- and opponent-dependent noise at the single-game level; present it as a
+  trend, never as a player-value rating.
+
 ## Matchup projection (`projection.ts`)
 
 A deliberately simple, explainable efficiency model — label it "estimate", never "prediction":

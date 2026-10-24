@@ -162,6 +162,20 @@ export interface LineupView {
   defRating: number | null;
 }
 
+/** Raw per-game series; the UI derives trends with plusMinusTrend() from src/lib/analytics. */
+export interface PlusMinusSeriesView {
+  games: { gameId: string; date: string; opponentAbbr: string; won: boolean }[];
+  players: {
+    playerId: string;
+    name: string;
+    status: RosterStatus;
+    /** last date this player logged a game for another team this season (traded / signed mid-season) */
+    joinedAfter: string | null;
+    currentInjury: string | null;
+    lines: { gameId: string; minutes: number | null; plusMinus: number | null; dnp: boolean; dnpReason: string | null }[];
+  }[];
+}
+
 export interface LeagueView {
   teams: number;
   offRtg: number;
@@ -182,6 +196,7 @@ export interface TeamDashboardData {
     newcomerMinutesShare: number | null;
   };
   rotation: RotationView;
+  plusMinus: PlusMinusSeriesView;
   startingLineups: { units: StartingUnitView[]; gamesMissingStarterData: number };
   topLineups: LineupView[];
   recentGames: GameResultView[];

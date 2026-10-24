@@ -10,6 +10,7 @@ import { ErrorDisplay } from "@/components/ui/ErrorDisplay";
 import { RatingTrendChart } from "./RatingTrendChart";
 import { RosterTracker } from "./RosterTracker";
 import { RotationHeatmap } from "./RotationHeatmap";
+import { PlusMinusTracker } from "./PlusMinusTracker";
 import { DataNotes, EmptyState, FormStrip, METRIC_META, MetricTile, RankChip, Section, WindowToggle, fmtMetric, type Window } from "./primitives";
 import type { RankedMetric, TeamDashboardData, TeamProfileView } from "@/lib/dashboard-types";
 
@@ -78,6 +79,13 @@ export function LakersDashboard({ teamId = FOCUS_TEAM_ID }: { teamId?: string })
         }
       >
         <RosterTracker roster={data.roster} season={data.season.id} previous={data.season.previous} />
+      </Section>
+
+      <Section
+        title="Plus-minus trend"
+        subtitle="Each player's +/- across the season with a moving average over games played — missed games show as gaps, not zeros"
+      >
+        <PlusMinusTracker series={data.plusMinus} />
       </Section>
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">

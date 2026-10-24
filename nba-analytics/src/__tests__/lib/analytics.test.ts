@@ -11,6 +11,7 @@ import { normalCdf, projectGame, regress } from '@/lib/analytics/projection'
 import { fourFactorEdges, verdictFor } from '@/lib/analytics/matchup'
 import { classifyPlayer, newcomerMinutesShare, roleMinutes } from '@/lib/analytics/roster'
 import { gameRatings, rollingMean } from '@/lib/analytics/trend'
+import { absenceKind, plusMinusTrend } from '@/lib/analytics/plusMinus'
 import { summarizeForm, trendOf, trueShooting } from '@/lib/analytics/form'
 import { startingLineups } from '@/lib/analytics/lineups'
 import { seasonForDate, previousSeason } from '@/lib/constants'
@@ -314,5 +315,75 @@ describe('roster minutes', () => {
     const bench = roleMinutes({ minutes: 14, gamesPlayed: 3 }, { minutes: 12 })
     expect(injuredStar).toBeGreaterThan(bench)
     expect(roleMinutes({ minutes: 20, gamesPlayed: 8 }, { minutes: 34 })).toBe(20) // established role wins
+  })
+})
+
+describe('plusMinusTrend', () => {
+  const slots = Array.from({ length: 10 }, (_, i) => ({
+    gameId: `g${i + 1}`,
+    date: new Date(Date.UTC(2026, 9, 21 + i * 2)),
+    opponentAbbr: 'OPP',
+    won: i % 2 === 0,
+  }))
+  const line = (n: number, plusMinus: number, minutes = 30) => ({ gameId: `g${n}`, plusMinus, minutes })
+
+  it('treats missed games as gaps, not zeros, so an absence does not flatten the average', () => {
+    // +10 every game played; injured for games 4-7
+    const lines = [1, 2, 3, 8, 9, 10].map((n) => line(n, 10))
+    const { points, summary } = plusMinusTrend(slots, lines, { window: 5 })
+    expect(points.map((p) => p.availability)).toEqual([
+      'played', 'played', 'played', 'missed', 'missed', 'missed', 'missed', 'played', 'played', 'played',
+    ])
+    expect(points[3].rollingAvg).toBeNull() // gap on the chart
+    expect(points[7].rollingAvg).toBe(10) // still 10 on return — zero-filling would give 4
+    expect(summary).toMatchObject({ gamesPlayed: 6, gamesMissed: 4, seasonAvg: 10 })
+    expect(summary.absences).toEqual([{ startGameId: 'g4', endGameId: 'g7', games: 4, reason: null, kind: 'unknown', ongoing: false }])
+  })
+
+  it('rolls over the last N games played', () => {
+    const lines = [1, 2, 3, 4, 5, 6].map((n) => line(n, n))
+    const { points } = plusMinusTrend(slots, lines, { window: 3 })
+    expect(points[0]).toMatchObject({ rollingAvg: 1, windowGames: 1 })
+    expect(points[5]).toMatchObject({ rollingAvg: 5, windowGames: 3 }) // (4+5+6)/3
+  })
+
+  it('per-36 is minutes-weighted so a limited-minutes return game is not over-weighted', () => {
+    const lines = [line(1, 12, 36), line(2, 12, 36), line(3, 1, 6)] // back on a minutes limit
+    const { points, summary } = plusMinusTrend(slots, lines, { window: 3 })
+    expect(points[2].rollingPer36).toBeCloseTo((36 * 25) / 78)
+    expect(points[2].rollingAvg).toBeCloseTo(25 / 3)
+    expect(summary.seasonPer36).toBeCloseTo((36 * 25) / 78)
+  })
+
+  it('games before a mid-season arrival are not counted as missed', () => {
+    const lines = [5, 6, 7, 8, 9, 10].map((n) => line(n, 2))
+    const { points, summary } = plusMinusTrend(slots, lines, { joinedAfter: slots[3].date })
+    expect(points.slice(0, 4).every((p) => p.availability === 'not-with-team')).toBe(true)
+    expect(summary.gamesMissed).toBe(0)
+  })
+
+  it('labels an ongoing absence with the current injury and keeps DNP reasons', () => {
+    const lines = [line(1, 3), { gameId: 'g2', minutes: 0, plusMinus: null, dnp: true, dnpReason: 'Rest' }, ...[3, 4, 5, 6, 7, 8].map((n) => line(n, 3))]
+    const { points, summary } = plusMinusTrend(slots, lines, { currentInjury: 'Out — Ankle' })
+    expect(points[1]).toMatchObject({ availability: 'missed', missedReason: 'Rest' })
+    expect(summary.absences.at(-1)).toMatchObject({ startGameId: 'g9', games: 2, ongoing: true, reason: 'Out — Ankle', kind: 'injury' })
+    expect(points[9].missedReason).toBe('Out — Ankle')
+    expect(summary.absences[0]).toMatchObject({ reason: 'Rest', kind: 'other', ongoing: false })
+  })
+
+  it('only calls an absence an injury when there is evidence', () => {
+    expect(absenceKind(null)).toBe('unknown') // healthy scratch and injury look the same in a box score
+    expect(absenceKind('Left knee soreness')).toBe('injury')
+    expect(absenceKind("Coach's decision")).toBe('other')
+    expect(absenceKind('Day-To-Day', true)).toBe('injury')
+  })
+
+  it('trend compares the last window with the season average in points', () => {
+    const rising = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => line(n, n <= 5 ? -5 : 8))
+    expect(plusMinusTrend(slots, rising, { window: 5 }).summary.trend).toBe('up')
+    const steady = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => line(n, 4))
+    expect(plusMinusTrend(slots, steady, { window: 5 }).summary.trend).toBe('flat')
+    expect(plusMinusTrend(slots, steady.slice(0, 4), { window: 5 }).summary.trend).toBeNull() // too few games
+    expect(plusMinusTrend(slots, []).summary).toMatchObject({ gamesPlayed: 0, gamesMissed: 10, seasonAvg: null })
   })
 })

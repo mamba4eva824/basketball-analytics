@@ -21,7 +21,7 @@ import { CURRENT_SEASON } from '@/lib/constants'
 import { startingLineups } from '@/lib/analytics/lineups'
 import { newcomerMinutesShare } from '@/lib/analytics/roster'
 import { gameRatings } from '@/lib/analytics/trend'
-import type { RotationView, TeamDashboardData } from '@/lib/dashboard-types'
+import type { PlusMinusSeriesView, RotationView, TeamDashboardData } from '@/lib/dashboard-types'
 
 const querySchema = z.object({
   season: seasonSchema.default(CURRENT_SEASON),
@@ -107,6 +107,29 @@ export async function GET(
         .sort((a, b) => totalMinutes(b.minutes) - totalMinutes(a.minutes)),
     }
 
+    // Plus-minus series: every team game, each roster player's lines, and when mid-season
+    // arrivals joined (their last game for another team this season)
+    const rosterIds = roster.rows.map((r) => r.player.id)
+    const elsewhere = await prisma.playerGameLog.groupBy({
+      by: ['playerId'],
+      where: { season, playerId: { in: rosterIds }, teamId: { not: teamId } },
+      _max: { gameDate: true },
+    })
+    const joinedAfter = new Map(elsewhere.map((e) => [e.playerId, e._max.gameDate]))
+    const plusMinus: PlusMinusSeriesView = {
+      games: [...results].reverse().map((g) => ({ gameId: g.gameId, date: g.date, opponentAbbr: g.opponent.abbreviation, won: g.result === 'W' })),
+      players: roster.rows.map((r) => ({
+        playerId: r.player.id,
+        name: r.player.fullName,
+        status: r.status,
+        joinedAfter: joinedAfter.get(r.player.id)?.toISOString() ?? null,
+        currentInjury: r.injury ? [r.injury.status, r.injury.injuryType].filter(Boolean).join(' — ') : null,
+        lines: roster.logs
+          .filter((l) => l.playerId === r.player.id)
+          .map((l) => ({ gameId: l.gameId, minutes: l.minutes, plusMinus: l.plusMinus, dnp: l.dnp, dnpReason: l.dnpReason })),
+      })),
+    }
+
     const dataNotes: string[] = []
     if (seasonInfo.isDemo) dataNotes.push('Synthetic demo data — not real NBA statistics.')
     if (results.length === 0) dataNotes.push(`No ${season} games in the database yet — run etl/refresh.py after tip-off.`)
@@ -130,6 +153,7 @@ export async function GET(
         newcomerMinutesShare: newcomerMinutesShare(roster.logs, statusById),
       },
       rotation,
+      plusMinus,
       startingLineups: {
         units: starters.units.slice(0, 5).map((u) => ({
           players: u.playerIds.map(named),
