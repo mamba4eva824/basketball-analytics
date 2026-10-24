@@ -27,10 +27,14 @@ at the top of the report and do not present numbers as real.**
 3. **Where we have the edge** — every `edges[]` item with `advantage`, explained in plain
    words (e.g. "they rank 27th in opponent TOV% and we're 4th in ball security").
 4. **Where they hurt us** — `disadvantage` items, plus their top 3 players by usage/points
-   with recent form (`opponent.keyPlayers[].last5`).
+   with recent form (`keyPlayers.theirs[].last5`).
 5. **Availability** — `injuries` for both teams with the `fetchedAt` timestamp; omit the
    section if empty, never guess.
 6. **Keys to the game** — 3 bullets, each tied to a number above.
+
+## 3. Save it
+
+Write the report to `scouting/YYYY-MM-DD-LAL-at-OPP.md` for a road game, or `scouting/YYYY-MM-DD-OPP-at-LAL.md` for a home game, using the game date in ET. Add a row to the table in `scouting/README.md`. Never save a report built from demo data there.
 
 ## Rules
 

@@ -16,6 +16,7 @@ Supporting pages: `/standings`, `/roster`, `/games`, `/players/[id]`, `/players/
 ```
 CLAUDE.md                     ← you are here (project-wide rules)
 .claude/skills/               ← task playbooks (see "Skills" below)
+scouting/                     ← saved pre-game scouting reports (one .md per game, see its README)
 nba-analytics/
   etl/                        ← Python ETL (nba_api → Postgres). config.py owns season + team constants
   prisma/schema.prisma        ← single source of truth for the DB schema (no migrations dir; use db push)
