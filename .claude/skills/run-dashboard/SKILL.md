@@ -19,8 +19,11 @@ pg_ctlcluster 16 main start && sudo -u postgres psql -c "ALTER USER postgres PAS
 # macOS: brew services start postgresql@16 && createdb nba_analytics
 ```
 
-`.env` (git-ignored) must contain:
-`DATABASE_URL="postgresql://postgres:postgres@localhost:5432/nba_analytics"`
+`.env` (git-ignored, template in `.env.example`) must contain one `DATABASE_URL`:
+
+- **Real data:** the Supabase Session pooler string (project "Lakers Analytics West"); skip the
+  local Postgres setup and `prisma db push` (the schema is already applied there).
+- **Offline/demo:** `postgresql://postgres:postgres@localhost:5432/nba_analytics`.
 
 ## 2. Schema + client
 
@@ -35,8 +38,8 @@ npx prisma generate     # client is generated into src/generated/prisma (git-ign
 - **Real data** (needs network access to stats.nba.com — home connection, not a cloud VM):
   follow the `refresh-nba-data` skill (`etl-env/bin/python etl/refresh.py`).
 - **Demo data** (offline, synthetic, labelled "(demo data)" in the header):
-  `npx tsx scripts/seed-demo-data.ts`. It wipes the DB first. Never screenshot demo data and
-  call it real.
+  `npx tsx scripts/seed-demo-data.ts`. It wipes the DB first — **only ever against local
+  Postgres, never Supabase**. Never screenshot demo data and call it real.
 
 ## 4. Start
 

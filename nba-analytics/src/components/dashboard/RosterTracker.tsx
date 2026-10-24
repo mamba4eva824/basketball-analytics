@@ -3,6 +3,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { fmtNum, fmtPct, fmtSigned } from "@/lib/format";
 import { InjuryTag, SmallSampleTag, StatusBadge, TrendArrow } from "./primitives";
+import { PlayerAvatar } from "./PlayerAvatar";
 import type { PlayerLine, RosterRow, RosterStatus } from "@/lib/dashboard-types";
 
 type Filter = "all" | RosterStatus;
@@ -79,7 +80,8 @@ export function RosterTracker({ roster, season, previous }: { roster: RosterRow[
               return (
                 <tr key={r.player.id} className="border-b border-border-theme/60 hover:bg-surface-hover">
                   <td className="py-2 pr-3 whitespace-nowrap">
-                    <Link href={`/players/${r.player.id}`} className="font-medium text-text-primary hover:text-heading">{r.player.fullName}</Link>
+                    <PlayerAvatar name={r.player.fullName} headshotUrl={r.player.headshotUrl} size={28} />
+                    <Link href={`/players/${r.player.id}`} className="ml-2 align-middle font-medium text-text-primary hover:text-heading">{r.player.fullName}</Link>
                     <span className="ml-1.5 text-xs text-text-faint">{r.player.position ?? ""}</span>
                     <span className="ml-2 inline-flex gap-1 align-middle">
                       <StatusBadge status={r.status} />

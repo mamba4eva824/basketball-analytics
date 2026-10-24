@@ -14,6 +14,19 @@ import { PrismaClient, Prisma, Conference, Division, HomeAway, WinLoss } from '.
 import { CURRENT_SEASON, FOCUS_TEAM_ID, previousSeason, seasonStartYear } from '../src/lib/constants'
 import { DEMO_MARKER } from '../src/app/api/_lib/dashboardData'
 
+// Both seed scripts wipe every table first: refuse anything but a local database (e.g. Supabase).
+const dbHost = (() => {
+  try {
+    return new URL(process.env.DATABASE_URL ?? '').hostname.replace(/^\[|\]$/g, '')
+  } catch {
+    return ''
+  }
+})()
+if (!['localhost', '127.0.0.1', '::1', ''].includes(dbHost) && !process.argv.includes('--allow-remote')) {
+  console.error(`[demo-seed] Refusing to wipe non-local database host "${dbHost}". Point DATABASE_URL at local Postgres.`)
+  process.exit(1)
+}
+
 const prisma = new PrismaClient()
 const ROUNDS = Number(process.argv[process.argv.indexOf('--rounds') + 1]) || 14
 const UPCOMING_ROUNDS = 10

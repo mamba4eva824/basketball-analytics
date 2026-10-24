@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { format } from "date-fns";
 import { useMatchup } from "@/lib/hooks/useDashboard";
+import { PlayerAvatar } from "./PlayerAvatar";
 import { useThemeColors } from "@/lib/ThemeContext";
 import { fmtNum, fmtPct, fmtSigned, ordinal } from "@/lib/format";
 import { PageSkeleton } from "@/components/ui/LoadingSkeleton";
@@ -315,7 +316,8 @@ function KeyPlayers({ players }: { players: KeyPlayerView[] }) {
             return (
               <tr key={p.player.id} className="border-b border-border-theme/50">
                 <td className="py-2 pr-2">
-                  <Link href={`/players/${p.player.id}`} className="font-medium text-text-primary hover:text-heading whitespace-nowrap">{p.player.fullName}</Link>
+                  <PlayerAvatar name={p.player.fullName} headshotUrl={p.player.headshotUrl} size={26} />
+                  <Link href={`/players/${p.player.id}`} className="ml-2 align-middle font-medium text-text-primary hover:text-heading whitespace-nowrap">{p.player.fullName}</Link>
                   <span className="ml-1.5 inline-flex flex-wrap gap-1 align-middle">
                     {p.status !== "returning" && <StatusBadge status={p.status} />}
                     <InjuryTag injury={p.injury} />

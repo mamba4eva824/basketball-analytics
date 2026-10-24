@@ -17,8 +17,15 @@ etl-env/bin/pip install nba_api pandas sqlalchemy "psycopg[binary]" psycopg2-bin
 ```bash
 etl-env/bin/python etl/refresh.py                 # current season, all 30 teams (~45 calls, ~1–2 min)
 etl-env/bin/python etl/refresh.py --skip-injuries # if ESPN is unreachable
-etl-env/bin/python etl/refresh.py --season 2025-26 --skip-schedule --skip-injuries  # backfill one season
 ```
+
+Scope is **the current season only**. `refresh.py` also pulls last season's player season stats
+(2 calls) for newcomer baselines; don't backfill previous-season games unless asked.
+
+**Run it from a home connection.** stats.nba.com / cdn.nba.com refuse cloud and datacenter IPs —
+Claude cloud sessions get an empty reply even with the domains allowlisted. Point `DATABASE_URL`
+at Supabase (session pooler, see `nba-analytics/.env.example`) so the data lands in the shared
+database rather than a throwaway container.
 
 `refresh.py` uses league-wide endpoints so every opponent is covered for a handful of calls:
 
@@ -60,8 +67,10 @@ per-player calls — use it only for history.
   0 rows (older fetchers swallow API errors — check their log lines); `failed` = it raised.
   Exit code 1 means a required step failed (injuries are optional).
 
-- **Timeouts / connection reset from stats.nba.com**: the site blocks most cloud IPs. Run from
+- **Timeouts / "Empty reply from server" from stats.nba.com**: the site blocks cloud IPs. Run from
   a residential connection. Retrying harder makes it worse.
+- **`could not translate host name` / IPv6 errors to Supabase**: you used the direct connection
+  (`db.<ref>.supabase.co`, IPv6-only on free tier). Use the Session pooler string instead.
 - **`ReadTimeout` on one team**: `safe_call` retries 3×; re-run `refresh.py` — it is idempotent.
 - **Injuries panel empty**: ESPN changed its JSON or is unreachable — the fetcher logs and
   skips (a fetch that parses 0 rows keeps the previous snapshot); the rest of the refresh is unaffected.

@@ -17,9 +17,8 @@ grep before you finish: `grep -rn '"20[0-9][0-9]-[0-9][0-9]"' nba-analytics/src 
 ## Checklist
 
 1. **Confirm the season** — `etl-env/bin/python -c "import sys; sys.path.insert(0,'etl'); import config; print(config.CURRENT_SEASON_YEAR, config.PREVIOUS_SEASON_YEAR)"`.
-2. **Finalize last season** — newcomer baselines read last season's `PlayerSeasonStats`
-   league-wide, so make sure it is complete:
-   `etl-env/bin/python etl/refresh.py --season <PREVIOUS> --skip-schedule --skip-injuries`.
+2. **Last season's baselines** — newcomer baselines read last season's `PlayerSeasonStats`
+   league-wide. `refresh.py` fetches them automatically (2 calls); no game backfill needed.
 3. **Refresh rosters + current season** — `etl-env/bin/python etl/refresh.py`.
    Rosters come from `CommonTeamRoster` for all 30 teams, which moves traded/signed players
    (`Player.teamId`) to their new team.

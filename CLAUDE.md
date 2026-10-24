@@ -52,8 +52,29 @@ npx vitest run                         # all unit + API integration tests
 npx playwright test                    # e2e
 ```
 
-`DATABASE_URL` lives in `nba-analytics/.env` (git-ignored). Default:
-`postgresql://postgres:postgres@localhost:5432/nba_analytics`.
+`DATABASE_URL` lives in `nba-analytics/.env` (git-ignored; template in `.env.example`).
+
+## Where the data lives
+
+- **Production data → Supabase** project "Lakers Analytics West" (`urryjbnkvnjtuzpvletn`,
+  us-west-1). Connect with the **Session pooler** string (IPv4, port 5432) from the dashboard's
+  Connect panel — used by both the ETL and the app. Never commit the password.
+- **Row Level Security is on for every table with no policies.** Prisma and the ETL connect as the
+  table owner and are unaffected; Supabase's public REST API (anon key) can read/write nothing.
+  Keep it that way — new tables need `ENABLE ROW LEVEL SECURITY` too.
+- **Schema changes:** edit `prisma/schema.prisma`, then apply to Supabase
+  (`npx prisma db push` with `DATABASE_URL` set to the session pooler, or generate SQL with
+  `npx prisma migrate diff --from-empty --to-schema-datamodel prisma/schema.prisma --script`
+  and apply it as a migration), then re-enable RLS on any new table.
+- **Local Postgres** is for offline dev, the demo seed and tests only — never seed demo data
+  into Supabase.
+- **The ETL must run from a home/residential connection.** stats.nba.com and cdn.nba.com refuse
+  cloud/datacenter IPs (verified from Claude cloud sessions: empty reply / Akamai 403 even with the
+  domains allowlisted). Run `etl/refresh.py` on your own machine with `DATABASE_URL` → Supabase.
+- **Player headshots** load in the viewer's browser from cdn.nba.com (`PlayerAvatar`), so they
+  work wherever the dashboard is opened from a normal network; initials are the fallback.
+- Scope is the current season only: `refresh.py` also pulls last season's *player season stats*
+  (2 calls, for newcomer baselines) but no previous-season games.
 
 ## Data rules (non-negotiable)
 
@@ -77,8 +98,9 @@ Formulas, thresholds and the matchup projection model are documented in
 
 ## Data providers
 
-- **stats.nba.com via `nba_api`** (primary, free, no key). Blocks many cloud/datacenter IPs
-  — run the ETL from a home connection. Throttle ≥0.6 s between calls (`utils.safe_call`).
+- **stats.nba.com via `nba_api`** (primary, free, no key; 139 stats endpoints, ~16 used). Blocks
+  cloud/datacenter IPs — run the ETL from a home connection. Throttle ≥0.6 s between calls
+  (`utils.safe_call`).
 - **ESPN public site API** (injuries only, optional, unofficial — `etl/fetch_injuries.py`).
   If it breaks, the matchup page simply hides the availability panel.
 - Considered but not integrated: BallDontLie (free tier lacks advanced stats), Sportradar /
