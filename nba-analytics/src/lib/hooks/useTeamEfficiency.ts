@@ -1,8 +1,9 @@
 "use client";
 import { useQuery } from "@tanstack/react-query";
 import { apiFetchSingle } from "./api";
+import { CURRENT_SEASON } from "@/lib/constants";
 
-const DEFAULT_SEASON = "2025-26";
+const DEFAULT_SEASON = CURRENT_SEASON;
 
 export interface GameEfficiency {
   gameId: string;

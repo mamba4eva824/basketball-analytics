@@ -5,6 +5,7 @@ import { PlayerStatsTable } from "@/components/tables/PlayerStatsTable";
 import { StatCard } from "@/components/layout/StatCard";
 import { PageSkeleton } from "@/components/ui/LoadingSkeleton";
 import { ErrorDisplay } from "@/components/ui/ErrorDisplay";
+import { CURRENT_SEASON } from "@/lib/constants";
 
 export function RosterPageClient({ teamId }: { teamId: string }) {
   const { data: team, isLoading: tL } = useTeam(teamId);
@@ -13,7 +14,7 @@ export function RosterPageClient({ teamId }: { teamId: string }) {
     isLoading: rL,
     error,
     refetch,
-  } = useTeamRoster(teamId, "2025-26");
+  } = useTeamRoster(teamId, CURRENT_SEASON);
 
   if (tL || rL) return <PageSkeleton />;
   if (error || !roster)
@@ -62,7 +63,7 @@ export function RosterPageClient({ teamId }: { teamId: string }) {
           {team?.fullName ?? "Team"} Roster
         </h1>
         <p className="text-text-muted mt-1">
-          2025-26 Season &middot; {roster.length} players
+          {CURRENT_SEASON} Season &middot; {roster.length} players
         </p>
       </div>
 

@@ -8,6 +8,8 @@ import {
   serverError,
 } from '@/app/api/_lib/response'
 import { parseSearchParams, seasonSchema } from '@/app/api/_lib/validation'
+import { loadGamesStarted } from '@/app/api/_lib/dashboardData'
+import { startKey } from '@/lib/analytics/roster'
 
 const querySchema = z.object({
   season: seasonSchema.optional(),
@@ -54,23 +56,27 @@ export async function GET(
 
       interface SeasonStatRow {
         player: Record<string, unknown>
+        playerId: string
         gamesPlayed: number
-        gamesStarted: number
         minutesPerGame: number | null
         pointsPerGame: number | null
         reboundsPerGame: number | null
         assistsPerGame: number | null
+        plusMinusPerGame: number | null
       }
 
-      const roster = (seasonStats as unknown as SeasonStatRow[]).map((s: SeasonStatRow) => ({
+      const rows = seasonStats as unknown as SeasonStatRow[]
+      const starts = await loadGamesStarted(rows.map((s) => s.playerId), [season])
+      const roster = rows.map((s: SeasonStatRow) => ({
         ...s.player,
         seasonStats: {
           gamesPlayed: s.gamesPlayed,
-          gamesStarted: s.gamesStarted,
+          gamesStarted: starts.get(startKey(s.playerId, teamId, season)) ?? null,
           minutesPerGame: s.minutesPerGame,
           pointsPerGame: s.pointsPerGame,
           reboundsPerGame: s.reboundsPerGame,
           assistsPerGame: s.assistsPerGame,
+          plusMinusPerGame: s.plusMinusPerGame,
         },
       }))
 

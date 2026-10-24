@@ -10,7 +10,21 @@
  * Requires DATABASE_URL to be set in the environment (or in .env via dotenv).
  */
 
+import 'dotenv/config'
 import { PrismaClient, ShotResult, ShotType, HomeAway, WinLoss, Conference, Division } from '../src/generated/prisma/client'
+
+// Both seed scripts wipe every table first: refuse anything but a local database (e.g. Supabase).
+const dbHost = (() => {
+  try {
+    return new URL(process.env.DATABASE_URL ?? '').hostname.replace(/^\[|\]$/g, '')
+  } catch {
+    return ''
+  }
+})()
+if (!['localhost', '127.0.0.1', '::1', ''].includes(dbHost) && !process.argv.includes('--allow-remote')) {
+  console.error(`[seed] Refusing to wipe non-local database host "${dbHost}". Point DATABASE_URL at local Postgres.`)
+  process.exit(1)
+}
 
 const prisma = new PrismaClient()
 
@@ -50,6 +64,8 @@ async function main() {
   log('Clearing existing data (child tables first)...')
 
   // Delete in reverse-dependency order
+  await prisma.playerInjury.deleteMany()
+  await prisma.scheduledGame.deleteMany()
   await prisma.shotChart.deleteMany()
   await prisma.lineupStats.deleteMany()
   await prisma.standing.deleteMany()

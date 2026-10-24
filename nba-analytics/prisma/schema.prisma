@@ -80,6 +80,9 @@ model Team {
   shotCharts           ShotChart[]
   lineupStats          LineupStats[]
   standings            Standing[]
+  homeScheduledGames   ScheduledGame[]          @relation("HomeScheduledGames")
+  awayScheduledGames   ScheduledGame[]          @relation("AwayScheduledGames")
+  injuries             PlayerInjury[]
 
   @@index([conference])
   @@index([division])
@@ -152,6 +155,7 @@ model Season {
   shotCharts           ShotChart[]
   lineupStats          LineupStats[]
   standings            Standing[]
+  scheduledGames       ScheduledGame[]
 
   @@index([isCurrent])
 }
@@ -708,4 +712,64 @@ model Standing {
   @@index([asOfDate])
   @@index([conferenceRank])
   @@index([teamId, season])
+}
+
+// ──────────────────────────────────────────────
+// ScheduledGame — full league schedule (ScheduleLeagueV2), incl. future games
+// ──────────────────────────────────────────────
+
+model ScheduledGame {
+  gameId      String   @id                       // NBA game ID e.g. "0022600001"
+  season      String                             // "2026-27"
+  seasonId    String                             // FK to Season
+  gameDateUtc DateTime                           // tip-off, UTC
+  gameDateEt  String                             // local (ET) calendar date "YYYY-MM-DD"
+  status      Int                                // 1 = scheduled, 2 = live, 3 = final
+  statusText  String?                            // e.g. "7:30 pm ET", "Final"
+  homeTeamId  String
+  awayTeamId  String
+  homeScore   Int?
+  awayScore   Int?
+  arena       String?
+  arenaCity   String?
+  nationalTv  String?                            // national broadcaster, if any
+  gameLabel   String?                            // e.g. "Emirates NBA Cup"
+  isPlayoff   Boolean  @default(false)
+
+  homeTeam  Team   @relation("HomeScheduledGames", fields: [homeTeamId], references: [id])
+  awayTeam  Team   @relation("AwayScheduledGames", fields: [awayTeamId], references: [id])
+  seasonRef Season @relation(fields: [seasonId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([season])
+  @@index([gameDateUtc])
+  @@index([homeTeamId])
+  @@index([awayTeamId])
+}
+
+// ──────────────────────────────────────────────
+// PlayerInjury — latest injury report snapshot (unofficial, ESPN)
+// Replaced wholesale on each fetch for a given source.
+// ──────────────────────────────────────────────
+
+model PlayerInjury {
+  id         String    @id @default(cuid())
+  source     String    @default("espn")
+  teamId     String
+  playerId   String?                             // matched NBA player ID (null if name didn't match)
+  playerName String
+  status     String                              // "Out", "Day-To-Day", "Questionable", ...
+  injuryType String?                             // e.g. "Knee"
+  detail     String?                             // short comment
+  returnDate DateTime?                           // estimated return, if published
+  reportedAt DateTime?                           // when the source last updated the entry
+  fetchedAt  DateTime                            // when our ETL captured it
+
+  team Team @relation(fields: [teamId], references: [id])
+
+  @@unique([source, teamId, playerName])
+  @@index([teamId])
+  @@index([playerId])
 }

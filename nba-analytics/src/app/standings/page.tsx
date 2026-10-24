@@ -6,6 +6,7 @@ import { TeamLogo } from "@/components/ui/TeamLogo";
 import { PageSkeleton } from "@/components/ui/LoadingSkeleton";
 import { ErrorDisplay } from "@/components/ui/ErrorDisplay";
 import type { Conference } from "@/lib/types";
+import { CURRENT_SEASON } from "@/lib/constants";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 function StandingsTable({
@@ -221,7 +222,7 @@ export default function StandingsPage() {
         <h1 className="text-3xl font-bold text-heading mb-2">
           League Standings
         </h1>
-        <p className="text-text-muted">2025-26 Regular Season</p>
+        <p className="text-text-muted">{CURRENT_SEASON} Regular Season</p>
       </div>
 
       <div className="space-y-6">

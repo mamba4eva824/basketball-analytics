@@ -3,6 +3,10 @@ ETL Configuration — database connection, constants, season helpers.
 """
 
 import os
+import re
+from datetime import date, datetime
+from zoneinfo import ZoneInfo
+
 from dotenv import load_dotenv
 
 # Load .env from project root
@@ -14,29 +18,84 @@ DATABASE_URL = os.getenv('DATABASE_URL', 'postgresql://postgres:postgres@localho
 # ── NBA Constants ─────────────────────────────────────────────────────────────
 LAKERS_TEAM_ID = '1610612747'
 
-# Current season (2025-26)
-CURRENT_SEASON_YEAR = '2025-26'          # nba_api season string
-CURRENT_SEASON_ID = '2025-26'            # Prisma Season.id
-CURRENT_SEASON_START_YEAR = 2025
-CURRENT_SEASON_END_YEAR = 2026
+# ── Season derivation ────────────────────────────────────────────────────────
+# A season "rolls over" on Oct 1: Oct–Dec belong to the season starting that
+# year, Jan–Sep to the season that started the previous year.
+# Override with NBA_SEASON=YYYY-YY (e.g. NBA_SEASON=2025-26).
 
-# Seasons to backfill (most recent 5 seasons)
+SEASON_ROLLOVER_MONTH = 10
+BACKFILL_SEASON_COUNT = 5
+
+
+def season_from_start_year(start_year: int) -> str:
+    """2026 -> '2026-27'."""
+    return f"{start_year}-{(start_year + 1) % 100:02d}"
+
+
+def season_start_year(season_str: str) -> int:
+    """'2026-27' -> 2026."""
+    return int(season_str[:4])
+
+
+def season_for_date(d) -> str:
+    """Season string for a date/datetime, e.g. 2026-10-24 -> '2026-27', 2026-09-30 -> '2025-26'."""
+    start = d.year if d.month >= SEASON_ROLLOVER_MONTH else d.year - 1
+    return season_from_start_year(start)
+
+
+def previous_season(season_str: str) -> str:
+    """'2026-27' -> '2025-26'."""
+    return season_from_start_year(season_start_year(season_str) - 1)
+
+
+def validate_season(season_str: str) -> str:
+    """Return the season string if it looks like 'YYYY-YY' with consecutive years, else raise ValueError."""
+    s = (season_str or '').strip()
+    if not re.fullmatch(r'\d{4}-\d{2}', s) or season_from_start_year(int(s[:4])) != s:
+        raise ValueError(f"Invalid season {season_str!r}; expected e.g. '2026-27'")
+    return s
+
+
+LEAGUE_TZ = ZoneInfo('America/New_York')
+
+
+def league_today() -> date:
+    """Today's date on the NBA's calendar (US Eastern) — must match src/lib/constants.ts."""
+    return datetime.now(LEAGUE_TZ).date()
+
+
+def resolve_current_season(today=None, env=None) -> str:
+    """NBA_SEASON override if set, otherwise derived from today's date."""
+    env = os.environ if env is None else env
+    override = (env.get('NBA_SEASON') or '').strip()
+    if override:
+        return validate_season(override)
+    return season_for_date(today or league_today())
+
+
+def season_metadata(season_str: str, current_season: str = None) -> dict:
+    """Season table row metadata: {startYear, endYear, isCurrent}."""
+    start = season_start_year(season_str)
+    return {
+        'startYear': start,
+        'endYear': start + 1,
+        'isCurrent': season_str == (current_season or CURRENT_SEASON_YEAR),
+    }
+
+
+CURRENT_SEASON_YEAR = resolve_current_season()   # nba_api season string, e.g. '2026-27'
+CURRENT_SEASON_ID = CURRENT_SEASON_YEAR           # Prisma Season.id
+CURRENT_SEASON_START_YEAR = season_start_year(CURRENT_SEASON_YEAR)
+CURRENT_SEASON_END_YEAR = CURRENT_SEASON_START_YEAR + 1
+PREVIOUS_SEASON_YEAR = previous_season(CURRENT_SEASON_YEAR)
+
+# Seasons to backfill: current + 4 previous, most recent first
 BACKFILL_SEASONS = [
-    '2025-26',
-    '2025-26',
-    '2023-24',
-    '2022-23',
-    '2021-22',
+    season_from_start_year(CURRENT_SEASON_START_YEAR - i) for i in range(BACKFILL_SEASON_COUNT)
 ]
 
 # Season metadata for Season table
-SEASON_METADATA = {
-    '2025-26': {'startYear': 2025, 'endYear': 2026, 'isCurrent': True},
-    '2024-25': {'startYear': 2024, 'endYear': 2025, 'isCurrent': False},
-    '2023-24': {'startYear': 2023, 'endYear': 2024, 'isCurrent': False},
-    '2022-23': {'startYear': 2022, 'endYear': 2023, 'isCurrent': False},
-    '2021-22': {'startYear': 2021, 'endYear': 2022, 'isCurrent': False},
-}
+SEASON_METADATA = {s: season_metadata(s, CURRENT_SEASON_YEAR) for s in BACKFILL_SEASONS}
 
 # Team colors and division/conference mapping
 # Conference and division for all 30 teams by abbreviation

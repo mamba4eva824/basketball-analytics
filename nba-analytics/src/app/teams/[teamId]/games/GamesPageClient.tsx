@@ -6,6 +6,7 @@ import { TeamGameLogTable } from "@/components/tables/GameLogTable";
 import { StatCard } from "@/components/layout/StatCard";
 import { PageSkeleton } from "@/components/ui/LoadingSkeleton";
 import { ErrorDisplay } from "@/components/ui/ErrorDisplay";
+import { CURRENT_SEASON } from "@/lib/constants";
 
 type FilterType = "all" | "W" | "L" | "HOME" | "AWAY";
 
@@ -16,7 +17,7 @@ export function GamesPageClient({ teamId }: { teamId: string }) {
     isLoading: gL,
     error,
     refetch,
-  } = useTeamGames(teamId, { season: "2025-26" });
+  } = useTeamGames(teamId, { season: CURRENT_SEASON });
   const [filter, setFilter] = useState<FilterType>("all");
 
   const games = useMemo(() => {
@@ -86,7 +87,7 @@ export function GamesPageClient({ teamId }: { teamId: string }) {
         <h1 className="text-3xl font-bold text-heading">
           {team?.fullName ?? "Team"} Game Log
         </h1>
-        <p className="text-text-muted mt-1">2025-26 Regular Season</p>
+        <p className="text-text-muted mt-1">{CURRENT_SEASON} Regular Season</p>
       </div>
 
       {/* Summary Stats */}

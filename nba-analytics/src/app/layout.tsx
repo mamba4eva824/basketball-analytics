@@ -3,6 +3,7 @@ import { Geist_Mono, Oswald, Source_Sans_3 } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/Providers";
 import { AppShell } from "@/components/layout/AppShell";
+import { THEME_INIT_SCRIPT } from "@/lib/themeScript";
 
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
@@ -34,7 +35,7 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${geistMono.variable} ${oswald.variable} ${sourceSans.variable} h-full dark`} suppressHydrationWarning>
       <head>
-        <script dangerouslySetInnerHTML={{ __html: `(function(){try{if(localStorage.getItem('theme')==='light'){document.documentElement.classList.remove('dark')}}catch(e){}})()` }} />
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
       </head>
       <body className="min-h-full bg-background text-foreground antialiased">
         <Providers>

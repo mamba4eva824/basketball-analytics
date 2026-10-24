@@ -11,6 +11,7 @@ from datetime import datetime
 
 from nba_api.stats.static import teams as nba_teams
 from nba_api.stats.endpoints import CommonTeamRoster
+from sqlalchemy import text
 
 from config import (
     TEAM_META, CURRENT_SEASON_YEAR, BACKFILL_SEASONS,
@@ -79,6 +80,7 @@ def fetch_team_rosters(team_ids=None):
         team_ids = [str(t['id']) for t in all_teams]
 
     all_players = []
+    fetched_team_ids = []
     for i, team_id in enumerate(team_ids):
         print(f"  Fetching roster for team {team_id} ({i+1}/{len(team_ids)})...")
         try:
@@ -149,6 +151,7 @@ def fetch_team_rosters(team_ids=None):
                     }
                     all_players.append(player_row)
                 print(f"    Found {len(roster_df)} players")
+                fetched_team_ids.append(str(team_id))
         except Exception as e:
             print(f"  [ERROR] Failed to fetch roster for team {team_id}: {e}")
             continue
@@ -164,10 +167,29 @@ def fetch_team_rosters(team_ids=None):
 
     with get_db() as session:
         count = upsert_rows(session, 'Player', all_players, columns, ['id'])
+        detached = detach_unlisted_players(session, fetched_team_ids, [p['id'] for p in all_players])
         session.commit()
-        print(f"  [OK] Upserted {count} players from rosters")
+        print(f"  [OK] Upserted {count} players from rosters; detached {detached} no longer listed")
 
     return all_players
+
+
+def detach_unlisted_players(session, fetched_team_ids, listed_player_ids):
+    """
+    Clear teamId for players still attached to a team whose roster we just fetched but who
+    are no longer on it (released, unsigned free agents, retired). Teams whose roster fetch
+    failed are left untouched so a partial outage can't empty a roster.
+    """
+    if not fetched_team_ids:
+        return 0
+    result = session.execute(
+        text('''
+            UPDATE "Player" SET "teamId" = NULL, "updatedAt" = NOW()
+            WHERE "teamId" = ANY(:teams) AND NOT ("id" = ANY(:ids))
+        '''),
+        {'teams': list(fetched_team_ids), 'ids': list(listed_player_ids)},
+    )
+    return result.rowcount or 0
 
 
 def run(team_ids=None):

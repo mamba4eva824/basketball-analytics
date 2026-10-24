@@ -128,6 +128,7 @@ export interface RosterPlayer extends Player {
     pointsPerGame: number;
     totalRebPerGame: number;
     assistsPerGame: number;
+    plusMinusPerGame: number | null;
   };
 }
 

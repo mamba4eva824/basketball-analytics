@@ -3,12 +3,13 @@ import { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { usePlayers } from "@/lib/hooks/usePlayerGamelog";
 import { ThemeToggle } from "./ThemeToggle";
+import { CURRENT_SEASON, FOCUS_TEAM_ID } from "@/lib/constants";
 
 export function Header() {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
   const [showResults, setShowResults] = useState(false);
-  const { data: searchResults } = usePlayers({ teamId: "1610612747", search: searchQuery.length >= 2 ? searchQuery : undefined, pageSize: 8 });
+  const { data: searchResults } = usePlayers({ teamId: FOCUS_TEAM_ID, search: searchQuery.length >= 2 ? searchQuery : undefined, pageSize: 8 });
 
   const handleSearch = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchQuery(e.target.value);
@@ -23,10 +24,10 @@ export function Header() {
 
   return (
     <header className="sticky top-0 z-20 bg-header backdrop-blur-xl border-b border-border-theme transition-colors duration-300">
-      <div className="flex items-center justify-between px-6 py-3">
-        <div className="pl-12 lg:pl-0">
-          <h2 className="text-lg font-semibold text-text-primary">Lakers Analytics Dashboard</h2>
-          <p className="text-xs text-text-faint">2025-26 Regular Season</p>
+      <div className="flex items-center justify-between gap-3 px-4 md:px-6 py-3">
+        <div className="pl-12 lg:pl-0 min-w-0">
+          <h2 className="text-lg font-semibold text-text-primary truncate">Lakers Analytics Dashboard</h2>
+          <p className="text-xs text-text-faint truncate">{CURRENT_SEASON} Regular Season</p>
         </div>
         <div className="flex items-center gap-3">
           <div className="relative">
@@ -37,7 +38,7 @@ export function Header() {
               <input type="text" placeholder="Search Lakers players..." value={searchQuery} onChange={handleSearch}
                 onFocus={() => searchQuery.length >= 2 && setShowResults(true)}
                 onBlur={() => setTimeout(() => setShowResults(false), 200)}
-                className="bg-transparent text-sm text-text-primary placeholder-text-faint outline-none w-40 md:w-64" />
+                className="bg-transparent text-sm text-text-primary placeholder-text-faint outline-none w-20 sm:w-40 md:w-64" />
             </div>
             {showResults && searchResults?.data && searchResults.data.length > 0 && (
               <div className="absolute top-full right-0 mt-2 w-80 max-h-96 overflow-y-auto glass-card border border-border-strong rounded-xl shadow-2xl">

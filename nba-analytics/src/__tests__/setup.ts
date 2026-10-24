@@ -7,6 +7,7 @@
  *   that interact with the database directly.
  */
 
+import { afterAll } from 'vitest'
 import { PrismaClient } from '@/generated/prisma/client'
 
 // ---------------------------------------------------------------------------
@@ -45,6 +46,8 @@ export async function apiFetch<T = unknown>(
  * (child tables first) so foreign-key constraints are respected.
  */
 export async function resetDatabase() {
+  await prisma.playerInjury.deleteMany()
+  await prisma.scheduledGame.deleteMany()
   await prisma.shotChart.deleteMany()
   await prisma.lineupStats.deleteMany()
   await prisma.standing.deleteMany()

@@ -1,5 +1,7 @@
 import { prisma } from '@/app/api/_lib/prisma'
 import { successResponse, notFound, serverError } from '@/app/api/_lib/response'
+import { loadGamesStarted } from '@/app/api/_lib/dashboardData'
+import { startKey } from '@/lib/analytics/roster'
 
 export async function GET(
   _request: Request,
@@ -26,7 +28,6 @@ export async function GET(
             season: true,
             teamId: true,
             gamesPlayed: true,
-            gamesStarted: true,
             minutesPerGame: true,
             pointsPerGame: true,
             reboundsPerGame: true,
@@ -51,7 +52,14 @@ export async function GET(
 
     if (!player) return notFound(`Player ${playerId} not found`)
 
-    return successResponse(player)
+    const starts = await loadGamesStarted([playerId], player.playerSeasonStats.map((s) => s.season))
+    return successResponse({
+      ...player,
+      playerSeasonStats: player.playerSeasonStats.map((s) => ({
+        ...s,
+        gamesStarted: starts.get(startKey(playerId, s.teamId, s.season)) ?? null,
+      })),
+    })
   } catch (err) {
     console.error('GET /api/players/[playerId] error:', err)
     return serverError()
