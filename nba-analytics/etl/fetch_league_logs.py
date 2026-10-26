@@ -96,6 +96,12 @@ def _team_side_stats(row):
     }
 
 
+def _result(row):
+    """'W' / 'L', or None while the game is still being played (LeagueGameLog leaves WL blank)."""
+    wl = str(row.get('WL', '')).strip().upper()
+    return wl if wl in ('W', 'L') else None
+
+
 def _is_home(matchup):
     return ' vs. ' in str(matchup)
 
@@ -108,7 +114,8 @@ def transform_team_game_log(df, season, known_team_ids=None):
     """
     Pair the two LeagueGameLog (T) rows of each GAME_ID into one GameBoxScore row.
     Home row: MATCHUP 'LAL vs. BOS'; away row: 'BOS @ LAL'. Games missing either side
-    (or with a team not in known_team_ids, when given) are skipped.
+    (or with a team not in known_team_ids, when given) are skipped, and so are games still
+    in progress: LeagueGameLog lists them mid-game with a blank WL and partial totals.
     """
     if df is None or df.empty:
         return []
@@ -130,6 +137,8 @@ def transform_team_game_log(df, season, known_team_ids=None):
     for game_id, pair in sides.items():
         home, away = pair.get('home'), pair.get('away')
         if home is None or away is None:
+            continue
+        if _result(home) is None or _result(away) is None:
             continue
         home_tid, away_tid = safe_int(home.get('TEAM_ID')), safe_int(away.get('TEAM_ID'))
         if home_tid is None or away_tid is None:
@@ -167,7 +176,7 @@ def transform_team_game_log(df, season, known_team_ids=None):
 def transform_player_game_log(df, season, known_player_ids, game_ids):
     """
     Map LeagueGameLog (P) rows to PlayerGameLog rows, keeping only players in
-    known_player_ids and games in game_ids (FK safety).
+    known_player_ids and games in game_ids (FK safety), and only finished games (WL set).
     """
     if df is None or df.empty:
         return []
@@ -185,9 +194,9 @@ def transform_player_game_log(df, season, known_player_ids, game_ids):
             continue
 
         game_date = parse_date(row.get('GAME_DATE'))
-        if game_date is None:
+        wl = _result(row)
+        if game_date is None or wl is None:
             continue
-        wl = str(row.get('WL', '')).strip().upper()
         min_decimal, min_str = parse_minutes(row.get('MIN'))
 
         log_row = {
@@ -199,7 +208,7 @@ def transform_player_game_log(df, season, known_player_ids, game_ids):
             'seasonId': season,
             'gameDate': game_date,
             'homeAway': 'HOME' if _is_home(row.get('MATCHUP', '')) else 'AWAY',
-            'result': wl if wl in ('W', 'L') else 'L',
+            'result': wl,
             'minutes': min_decimal,
             'minutesStr': min_str,
             'points': safe_int(row.get('PTS'), 0),

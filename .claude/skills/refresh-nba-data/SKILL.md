@@ -58,6 +58,10 @@ per-player calls — use it only for history.
 - Schema changes go in `prisma/schema.prisma` first, then `npx prisma db push`.
 - Never `str()` an ID read from `iterrows()` — use `str(safe_int(...))`. An all-numeric frame
   upcasts to float and yields `'1610612747.0'`.
+- `LeagueGameLog` lists games **while they are being played**, with a blank `WL` and partial
+  totals. Both game-log transforms skip rows without `W`/`L`, so a refresh during games is safe:
+  unfinished games are picked up by the first refresh after they end. Don't remove that guard —
+  partial games skew every team rating and scouting report.
 - Upserts must not clobber enrichment: `PLAYER_LOG_COLUMNS` deliberately omits `started` and
   the advanced fields so later steps' values survive a re-run.
 
@@ -74,5 +78,8 @@ per-player calls — use it only for history.
 - **`ReadTimeout` on one team**: `safe_call` retries 3×; re-run `refresh.py` — it is idempotent.
 - **Injuries panel empty**: ESPN changed its JSON or is unreachable — the fetcher logs and
   skips (a fetch that parses 0 rows keeps the previous snapshot); the rest of the refresh is unaffected.
+- **Tonight's game missing after the buzzer**: expected for a short while — the game log, schedule
+  status, standings and starters (BoxScoreTraditionalV3) publish at different times. Re-run later;
+  it is idempotent.
 - **Duplicate / missing games**: `SELECT season, count(*) FROM "GameBoxScore" GROUP BY 1`
   (a full regular season is 1,230 games).
