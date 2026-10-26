@@ -6,7 +6,7 @@ import { format } from "date-fns";
 import { useMatchup } from "@/lib/hooks/useDashboard";
 import { PlayerAvatar } from "./PlayerAvatar";
 import { useThemeColors } from "@/lib/ThemeContext";
-import { fmtNum, fmtPct, fmtSigned, ordinal } from "@/lib/format";
+import { fmtNum, fmtPct, fmtSigned, gameDay, ordinal } from "@/lib/format";
 import { PageSkeleton } from "@/components/ui/LoadingSkeleton";
 import { ErrorDisplay } from "@/components/ui/ErrorDisplay";
 import { DataNotes, EmptyState, FormStrip, InjuryTag, METRIC_META, Section, SmallSampleTag, StatusBadge, TrendArrow, WindowToggle, fmtMetric, type Window } from "./primitives";
@@ -103,7 +103,7 @@ export function MatchupDashboard() {
             <ul className="divide-y divide-border-theme/60">
               {data.headToHead.map((g) => (
                 <li key={g.gameId} className="flex justify-between py-2 text-sm">
-                  <span className="text-text-muted">{format(new Date(g.date), "MMM d, yyyy")} · {g.homeAway === "HOME" ? "home" : "away"}</span>
+                  <span className="text-text-muted">{format(gameDay(g.date), "MMM d, yyyy")} · {g.homeAway === "HOME" ? "home" : "away"}</span>
                   <span className={`font-mono font-semibold ${g.result === "W" ? "text-green-600 dark:text-green-400" : "text-red-500 dark:text-red-400"}`}>
                     {g.result} {g.points}-{g.oppPoints}
                   </span>

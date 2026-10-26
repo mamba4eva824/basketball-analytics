@@ -2,14 +2,34 @@
  * Response contracts for the aggregate endpoints:
  *   GET /api/dashboard/team/[teamId]  → TeamDashboardData
  *   GET /api/matchup                  → MatchupData
+ *   GET /api/live                     → LiveGameResponse
+ *   GET /api/schedule                 → ScheduleData
+ *   GET /api/advanced/team/[teamId]   → AdvancedTeamData
+ *   GET /api/reports                  → ReportMeta[]
+ *   GET /api/reports/[slug]           → ReportContent
  * Percentages are 0–1 decimals; dates are ISO strings.
  */
 import type { FactorEdge } from "@/lib/analytics/matchup";
 import type { RankedMetric } from "@/lib/analytics/ranks";
 import type { RosterStatus } from "@/lib/analytics/roster";
 import type { FormSummary, Trend } from "@/lib/analytics/form";
+import type { LiveGameData } from "@/lib/analytics/live";
+import type { ScheduleEntry, ScheduleSummary } from "@/lib/analytics/schedule";
 
 export type { FactorEdge, RankedMetric, RosterStatus, FormSummary, Trend };
+export type {
+  FoulStatus,
+  LiveGameData,
+  LiveLineupStint,
+  LivePlay,
+  LivePlayerLine,
+  LiveRun,
+  LiveShot,
+  LiveTeamFactors,
+  LiveTeamView,
+  MarginPoint,
+} from "@/lib/analytics/live";
+export type { ScheduleState, ScheduleSummary } from "@/lib/analytics/schedule";
 
 export interface TeamRefLite {
   id: string;
@@ -222,6 +242,8 @@ export interface ProjectionView {
 
 export interface MatchupData {
   season: SeasonInfo;
+  /** "YYYY-MM-DD" when built as of a past date (only earlier games counted); null = now */
+  asOf: string | null;
   us: TeamSnapshot;
   them: TeamSnapshot;
   league: LeagueView | null;
@@ -239,4 +261,108 @@ export interface MatchupData {
   injuries: { ours: InjuryView[]; theirs: InjuryView[] };
   injuriesFetchedAt: string | null;
   dataNotes: string[];
+}
+
+// ── /api/live ────────────────────────────────────────────────────────────────
+
+export interface LivePregameTeam {
+  teamId: string;
+  tricode: string;
+  city: string;
+  name: string;
+  wins: number;
+  losses: number;
+}
+
+export interface LivePregameView {
+  gameId: string;
+  tipoffUtc: string;
+  statusText: string;
+  isHome: boolean;
+  focus: LivePregameTeam;
+  opponent: LivePregameTeam;
+}
+
+/** GET /api/live/status — whether the focus team is playing right now. */
+export interface LiveStatus {
+  gameId: string | null;
+  live: boolean;
+}
+
+/** Today's focus-team game from the NBA live feed: in progress / final, not yet tipped, or none today. */
+export type LiveGameResponse =
+  | { kind: "live"; game: LiveGameData }
+  | { kind: "pregame"; pregame: LivePregameView }
+  | { kind: "none"; next: UpcomingGameView | null };
+
+// ── /api/schedule ────────────────────────────────────────────────────────────
+
+export interface ScheduleGameView extends Omit<ScheduleEntry, "opponentId"> {
+  tipoffUtc: string;
+  /** league (ET) calendar date "YYYY-MM-DD" */
+  dateEt: string;
+  statusText: string | null;
+  opponent: TeamRefLite;
+  arena: string | null;
+  nationalTv: string | null;
+  /** e.g. "Emirates NBA Cup" */
+  label: string | null;
+}
+
+export interface ScheduleData {
+  season: SeasonInfo;
+  /** today's league (ET) date */
+  today: string;
+  games: ScheduleGameView[];
+  summary: ScheduleSummary;
+  /** regular-season games not on the schedule yet (82 − scheduled) */
+  unscheduled: number;
+}
+
+// ── /api/advanced/team/[teamId] ──────────────────────────────────────────────
+
+export interface MetricTrendPointView {
+  gameId: string;
+  date: string;
+  opponentAbbr: string;
+  result: "W" | "L";
+  /** this game alone */
+  game: Record<RankedMetric, number | null>;
+  /** last `rollingWindow` games, aggregated (totals first, then divide) */
+  rolling: Record<RankedMetric, number | null>;
+  /** season to date through this game */
+  toDate: Record<RankedMetric, number | null>;
+}
+
+export interface AdvancedTeamData {
+  season: SeasonInfo;
+  team: TeamRefLite;
+  rollingWindow: number;
+  /** oldest → newest */
+  games: MetricTrendPointView[];
+  /** full-season value and rank among teams that have played */
+  seasonMetrics: Record<RankedMetric, MetricWithRank>;
+  rankedTeams: number;
+}
+
+// ── /api/reports ─────────────────────────────────────────────────────────────
+
+export type ReportKind = "pregame" | "postgame";
+
+/** A saved markdown report in scouting/ (written by the scouting-report / postgame-report skills). */
+export interface ReportMeta {
+  slug: string;
+  kind: ReportKind;
+  /** game date (ET) "YYYY-MM-DD" */
+  date: string;
+  /** shared by a game's pre- and post-game reports, e.g. "2026-10-25-LAL-at-UTA" */
+  gameKey: string;
+  opponentAbbr: string;
+  homeAway: "HOME" | "AWAY";
+  /** the report's first heading */
+  title: string;
+}
+
+export interface ReportContent extends ReportMeta {
+  markdown: string;
 }

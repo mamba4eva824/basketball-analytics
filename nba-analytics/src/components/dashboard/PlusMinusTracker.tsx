@@ -3,7 +3,7 @@ import { useMemo, useState } from "react";
 import { Bar, CartesianGrid, Cell, ComposedChart, Line, ReferenceArea, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { format } from "date-fns";
 import { useThemeColors } from "@/lib/ThemeContext";
-import { fmtNum, fmtSigned } from "@/lib/format";
+import { fmtNum, fmtSigned, gameDay } from "@/lib/format";
 import { PM_WINDOWS, plusMinusTrend, type Absence, type PlusMinusPoint, type PlusMinusTrend } from "@/lib/analytics/plusMinus";
 import { SMALL_SAMPLE_GAMES } from "@/lib/analytics/projection";
 import { EmptyState, SmallSampleTag, StatusBadge } from "./primitives";
@@ -57,7 +57,7 @@ export function PlusMinusTracker({ series }: { series: PlusMinusSeriesView }) {
   const points = active.trend.points.filter((p) => p.availability !== "not-with-team");
   const label = (id: string) => {
     const p = points.find((x) => x.gameId === id);
-    return p ? `${format(p.date, "MMM d")} ${p.opponentAbbr}` : "";
+    return p ? `${format(gameDay(p.date), "MMM d")} ${p.opponentAbbr}` : "";
   };
 
   return (
@@ -258,7 +258,7 @@ function PointTooltip({ on, p, win }: { on: boolean; p: PlusMinusPoint | undefin
   return (
     <div style={{ backgroundColor: c.tooltipBg, border: `1px solid ${c.tooltipBorder}`, borderRadius: 8, fontSize: 12, padding: "8px 10px" }}>
       <p style={{ color: c.tooltipLabel, fontWeight: 600 }}>
-        {format(p.date, "EEE MMM d")} · {p.opponentAbbr} · {p.won ? "W" : "L"}
+        {format(gameDay(p.date), "EEE MMM d")} · {p.opponentAbbr} · {p.won ? "W" : "L"}
       </p>
       {p.availability === "played" ? (
         <>

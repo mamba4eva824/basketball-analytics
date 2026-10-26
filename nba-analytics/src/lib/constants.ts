@@ -10,7 +10,7 @@ export const FOCUS_TEAM_ABBR = "LAL";
 const SEASON_ROLLOVER_MONTH = 10;
 
 /** The NBA runs on US Eastern time; etl/config.py uses the same zone (league_today). */
-const LEAGUE_TZ = "America/New_York";
+export const LEAGUE_TZ = "America/New_York";
 
 /** "2026-27" for any instant from Oct 1 2026 00:00 ET through Sep 30 2027 (ET). */
 export function seasonForDate(date: Date): string {
@@ -18,6 +18,11 @@ export function seasonForDate(date: Date): string {
   const year = Number(parts.find((p) => p.type === "year")!.value);
   const month = Number(parts.find((p) => p.type === "month")!.value);
   return formatSeason(month >= SEASON_ROLLOVER_MONTH ? year : year - 1);
+}
+
+/** "YYYY-MM-DD" league calendar date (US Eastern) for an instant. */
+export function leagueDate(date: Date): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: LEAGUE_TZ, year: "numeric", month: "2-digit", day: "2-digit" }).format(date);
 }
 
 export function formatSeason(startYear: number): string {

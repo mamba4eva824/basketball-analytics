@@ -12,9 +12,10 @@ import { fourFactorEdges, verdictFor } from '@/lib/analytics/matchup'
 import { classifyPlayer, gamesStartedByPlayer, newcomerMinutesShare, roleMinutes, startKey } from '@/lib/analytics/roster'
 import { gameRatings, rollingMean } from '@/lib/analytics/trend'
 import { absenceKind, plusMinusTrend } from '@/lib/analytics/plusMinus'
-import { summarizeForm, trendOf, trueShooting } from '@/lib/analytics/form'
+import { seasonLineFromLogs, summarizeForm, trendOf, trueShooting } from '@/lib/analytics/form'
 import { startingLineups } from '@/lib/analytics/lineups'
 import { seasonForDate, previousSeason } from '@/lib/constants'
+import { gameDay } from '@/lib/format'
 
 function side(teamId: string, o: Partial<BoxSide> = {}): BoxSide {
   return {
@@ -419,5 +420,35 @@ describe('plusMinusTrend', () => {
     expect(plusMinusTrend(slots, steady, { window: 5 }).summary.trend).toBe('flat')
     expect(plusMinusTrend(slots, steady.slice(0, 4), { window: 5 }).summary.trend).toBeNull() // too few games
     expect(plusMinusTrend(slots, []).summary).toMatchObject({ gamesPlayed: 0, gamesMissed: 10, seasonAvg: null })
+  })
+})
+
+describe('gameDay', () => {
+  it('reads a stored midnight-UTC game date as that calendar day locally', () => {
+    const d = gameDay('2026-10-21T00:00:00.000Z')
+    expect([d.getFullYear(), d.getMonth(), d.getDate()]).toEqual([2026, 9, 21])
+    expect(gameDay(new Date('2026-10-21T00:00:00Z')).getDate()).toBe(21)
+  })
+})
+
+describe('seasonLineFromLogs', () => {
+  const log = (o: Partial<Parameters<typeof seasonLineFromLogs>[0][number]> = {}) => ({
+    gameDate: new Date('2026-10-21'), minutes: 30, points: 20, rebounds: 5, assists: 4, fga: 15, fta: 5, fg3m: 2,
+    plusMinus: 5, dnp: false, fgm: 7, fg3a: 6, ftm: 4, steals: 1, blocks: 0, turnovers: 3, ...o,
+  })
+
+  it('averages games played and takes percentages from totals', () => {
+    const l = seasonLineFromLogs([log(), log({ points: 30, fgm: 11, fga: 20, fg3m: 4, fg3a: 8, plusMinus: -5 }), log({ dnp: true, minutes: 0 })])!
+    expect(l.gamesPlayed).toBe(2)
+    expect(l.points).toBe(25)
+    expect(l.fgPct).toBeCloseTo(18 / 35)
+    expect(l.threePct).toBeCloseTo(6 / 14)
+    expect(l.tsPct).toBeCloseTo(50 / (2 * (35 + 0.44 * 10)))
+    expect(l.plusMinus).toBe(0)
+  })
+
+  it('is null before the player has played', () => {
+    expect(seasonLineFromLogs([])).toBeNull()
+    expect(seasonLineFromLogs([log({ dnp: true, minutes: 0 })])).toBeNull()
   })
 })

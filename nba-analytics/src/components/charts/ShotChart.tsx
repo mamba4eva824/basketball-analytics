@@ -1,11 +1,8 @@
 "use client";
 import { useState, useMemo } from "react";
 import type { ShotChartEntry, ShotZone } from "@/lib/types";
-import { useThemeColors } from "@/lib/ThemeContext";
+import { COURT_H, COURT_W, HalfCourtLines, courtX, courtY } from "./HalfCourt";
 
-const COURT_W = 500, COURT_H = 470, BX = 250, BY = 52.5;
-function svgX(x: number) { return BX + x / 10 * (COURT_W / 50); }
-function svgY(y: number) { return BY + y / 10 * (COURT_H / 47); }
 
 const ZONE_LABELS: Record<ShotZone, string> = {
   RESTRICTED_AREA: "Restricted Area", IN_THE_PAINT: "Paint", MID_RANGE: "Mid-Range",
@@ -14,7 +11,6 @@ const ZONE_LABELS: Record<ShotZone, string> = {
 };
 
 export function ShotChart({ shots }: { shots: ShotChartEntry[] }) {
-  const colors = useThemeColors();
   const [filter, setFilter] = useState<"all"|"made"|"missed">("all");
   const [selectedZone, setSelectedZone] = useState<ShotZone|"all">("all");
 
@@ -53,19 +49,9 @@ export function ShotChart({ shots }: { shots: ShotChartEntry[] }) {
       </div>
       <div className="glass-card p-4 overflow-hidden">
         <svg viewBox={`0 0 ${COURT_W} ${COURT_H}`} className="w-full max-w-2xl mx-auto" style={{ maxHeight: "550px" }}>
-          <rect width={COURT_W} height={COURT_H} fill={colors.courtBg} rx="4" />
-          <line x1="0" y1="0" x2={COURT_W} y2="0" stroke={colors.courtLineLight} strokeWidth="2" />
-          <rect x={COURT_W/2-80} y="0" width="160" height="190" fill="none" stroke={colors.courtLine} strokeWidth="1.5" />
-          <circle cx={COURT_W/2} cy="190" r="60" fill="none" stroke={colors.courtLine} strokeWidth="1.5" />
-          <path d={`M ${BX-40} 0 A 40 40 0 0 0 ${BX+40} 0`} fill="none" stroke={colors.courtLineMed} strokeWidth="1.5" transform={`translate(0,${BY})`} />
-          <circle cx={BX} cy={BY} r="7.5" fill="none" stroke="#FDB927" strokeWidth="2" />
-          <line x1={BX-30} y1={BY-7} x2={BX+30} y2={BY-7} stroke={colors.courtLineDetail} strokeWidth="2" />
-          <line x1="30" y1="0" x2="30" y2="140" stroke={colors.courtLine} strokeWidth="1.5" />
-          <line x1="470" y1="0" x2="470" y2="140" stroke={colors.courtLine} strokeWidth="1.5" />
-          <path d="M 30 140 A 238 238 0 0 0 470 140" fill="none" stroke={colors.courtLine} strokeWidth="1.5" />
-          <line x1="0" y1={COURT_H} x2={COURT_W} y2={COURT_H} stroke={colors.courtLineLight} strokeWidth="1" />
+          <HalfCourtLines />
           {filtered.map((shot, i) => {
-            const cx = svgX(shot.locationX), cy = svgY(shot.locationY);
+            const cx = courtX(shot.locationX), cy = courtY(shot.locationY);
             if (cy < -10 || cy > COURT_H + 10) return null;
             return <circle key={shot.id||i} cx={cx} cy={cy} r={3} fill={shot.made?"#FDB927":"#552583"} opacity={0.7} stroke={shot.made?"#FDB927":"#3B1566"} strokeWidth={0.5}><title>{shot.made?"Made":"Missed"} {shot.shotDescription||shot.actionType||""} ({shot.shotDistance}ft)</title></circle>;
           })}

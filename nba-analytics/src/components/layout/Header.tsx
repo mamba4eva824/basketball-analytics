@@ -1,8 +1,10 @@
 "use client";
 import { useState, useCallback } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { usePlayers } from "@/lib/hooks/usePlayerGamelog";
 import { ThemeToggle } from "./ThemeToggle";
+import { TopNav } from "./TopNav";
 import { CURRENT_SEASON, FOCUS_TEAM_ID } from "@/lib/constants";
 
 export function Header() {
@@ -25,10 +27,15 @@ export function Header() {
   return (
     <header className="sticky top-0 z-20 bg-header backdrop-blur-xl border-b border-border-theme transition-colors duration-300">
       <div className="flex items-center justify-between gap-3 px-4 md:px-6 py-3">
-        <div className="pl-12 lg:pl-0 min-w-0">
-          <h2 className="text-lg font-semibold text-text-primary truncate">Lakers Analytics Dashboard</h2>
-          <p className="text-xs text-text-faint truncate">{CURRENT_SEASON} Regular Season</p>
-        </div>
+        <Link href="/" className="flex items-center gap-3 min-w-0" title="Lakers Analytics">
+          <span className="w-9 h-9 shrink-0 rounded-[10px] bg-gradient-to-br from-lakers-purple to-lakers-gold flex items-center justify-center shadow-sm">
+            <span className="text-white font-bold">L</span>
+          </span>
+          <span className="min-w-0 hidden sm:block">
+            <span className="block text-[15px] font-semibold text-text-primary leading-tight truncate">Lakers Analytics</span>
+            <span className="block text-[11px] text-text-faint truncate">{CURRENT_SEASON} Regular Season</span>
+          </span>
+        </Link>
         <div className="flex items-center gap-3">
           <div className="relative">
             <div className="flex items-center gap-2 bg-input border border-border-theme rounded-lg px-3 py-2 focus-within:border-lakers-purple/50 transition-colors">
@@ -67,6 +74,7 @@ export function Header() {
           <ThemeToggle />
         </div>
       </div>
+      <TopNav />
     </header>
   );
 }

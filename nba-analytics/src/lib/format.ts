@@ -2,6 +2,17 @@
 
 export const DASH = "—";
 
+/**
+ * Stored game dates (GameBoxScore.gameDate) are calendar days at 00:00 UTC. Read them as that
+ * day in the viewer's time zone — `new Date(iso)` would show the previous day in the Americas.
+ * Not for tip-off times (ScheduledGame.gameDateUtc), which are real instants.
+ */
+export function gameDay(value: string | Date): Date {
+  const iso = typeof value === "string" ? value : value.toISOString();
+  const [y, m, d] = iso.slice(0, 10).split("-").map(Number);
+  return new Date(y, m - 1, d);
+}
+
 export function fmtPct(val: number | null | undefined, digits = 1): string {
   if (val == null || Number.isNaN(val)) return DASH;
   return `${(val * 100).toFixed(digits)}%`;

@@ -2,13 +2,13 @@
 import { Bar, CartesianGrid, Cell, ComposedChart, Legend, Line, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { format } from "date-fns";
 import { useThemeColors } from "@/lib/ThemeContext";
-import { fmtNum, fmtSigned } from "@/lib/format";
+import { fmtNum, fmtSigned, gameDay } from "@/lib/format";
 import type { RatingTrendPoint } from "@/lib/dashboard-types";
 
 /** Per-game net rating (diverging bars: purple ≥ 0, orange < 0) with a rolling 5-game line. */
 export function RatingTrendChart({ data }: { data: RatingTrendPoint[] }) {
   const c = useThemeColors();
-  const rows = data.map((d) => ({ ...d, label: `${format(new Date(d.date), "MMM d")} ${d.opponentAbbr}` }));
+  const rows = data.map((d) => ({ ...d, label: `${format(gameDay(d.date), "MMM d")} ${d.opponentAbbr}` }));
   return (
     <ResponsiveContainer width="100%" height={280}>
       <ComposedChart data={rows} margin={{ top: 8, right: 12, bottom: 0, left: -8 }} barCategoryGap={2}>
