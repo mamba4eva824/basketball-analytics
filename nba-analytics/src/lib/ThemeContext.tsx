@@ -96,6 +96,8 @@ export function useThemeColors() {
       // Validated with the dataviz palette checker against #0A0A0A (us/them, +/− net)
       us: "#9b72d0",
       them: "#d95926",
+      /** trend / rolling-average lines (Lakers gold) */
+      trend: "#FDB927",
       heat: "155, 114, 208",
     };
   }
@@ -117,6 +119,8 @@ export function useThemeColors() {
     // Validated with the dataviz palette checker against #F5F0E8 (us/them, +/− net)
     us: "#7A4BAA",
     them: "#d4561f",
+    /** trend / rolling-average lines (dark Lakers gold, ~3.5:1 against #F5F0E8) */
+    trend: "#A87508",
     heat: "85, 37, 131",
   };
 }

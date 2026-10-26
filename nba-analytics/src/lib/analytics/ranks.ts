@@ -24,6 +24,9 @@ export const RANKED_METRICS = [
 
 export type RankedMetric = (typeof RANKED_METRICS)[number];
 
+/** Playing style, not quality: ranked high→low for display only, never called "better". */
+export const STYLE_METRICS: ReadonlySet<RankedMetric> = new Set<RankedMetric>(["pace", "threePaRate"]);
+
 /** Which direction is "better". Pace and 3PA rate are style, ranked high→low for display. */
 export const METRIC_DIRECTION: Record<RankedMetric, Direction> = {
   netRtg: "higher",

@@ -72,6 +72,18 @@ def test_team_log_known_team_filter(team_df):
     assert [r['gameId'] for r in rows] == ['0022600002']
 
 
+def test_team_log_skips_games_in_progress(team_df):
+    # LeagueGameLog lists live games with a blank WL (NaN) and partial totals
+    live = pd.DataFrame([
+        team_row('0022600112', LAKERS_ID, 'LAL', 'LAL @ UTA', float('nan'), 103),
+        team_row('0022600112', CELTICS_ID, 'BOS', 'BOS vs. LAL', float('nan'), 100),
+        team_row('0022600113', WARRIORS_ID, 'GSW', 'GSW vs. BOS', '', 28),
+        team_row('0022600113', CELTICS_ID, 'BOS', 'BOS @ GSW', None, 21),
+    ])
+    rows = transform_team_game_log(pd.concat([team_df, live]), SEASON)
+    assert {r['gameId'] for r in rows} == {'0022600001', '0022600002'}
+
+
 def test_team_log_empty():
     assert transform_team_game_log(pd.DataFrame(), SEASON) == []
     assert transform_team_game_log(None, SEASON) == []
@@ -141,6 +153,17 @@ def test_player_log_never_sets_started_or_advanced(player_df):
     for r in rows:
         assert set(PLAYER_LOG_COLUMNS) <= set(r)
         assert r['homeAway'] in ('HOME', 'AWAY') and r['result'] in ('W', 'L')
+
+
+def test_player_log_skips_games_in_progress(player_df):
+    live = pd.DataFrame([player_row('2544', LAKERS_ID, '0022600112', 'LAL @ UTA', float('nan'), 30, PTS=24)])
+    rows = transform_player_game_log(
+        pd.concat([player_df, live]), SEASON,
+        known_player_ids={'2544'},
+        # even if a partial GameBoxScore row for the game was saved by an older run
+        game_ids={'0022600001', '0022600112'},
+    )
+    assert [(r['playerId'], r['gameId'], r['result']) for r in rows] == [('2544', '0022600001', 'W')]
 
 
 def test_player_log_empty():

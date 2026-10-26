@@ -1,6 +1,6 @@
 "use client";
 import type { ReactNode } from "react";
-import { fmtNum, fmtPct, fmtSigned, ordinal, rankTone } from "@/lib/format";
+import { fmtNum, fmtPct, fmtSigned, gameDay, ordinal, rankTone } from "@/lib/format";
 import type { GameResultView, InjuryView, MetricWithRank, RankedMetric, RosterStatus, Trend } from "@/lib/dashboard-types";
 
 // ── Metric metadata (labels + formatting live here, nowhere else) ───────────
@@ -158,7 +158,7 @@ export function FormStrip({ games, label }: { games: GameResultView[]; label?: s
         <span
           key={g.gameId}
           className={`h-6 min-w-6 flex-1 max-w-9 rounded-sm flex items-center justify-center text-[10px] font-bold ${g.result === "W" ? "bg-green-500/25 text-green-600 dark:text-green-400" : "bg-red-500/20 text-red-500 dark:text-red-400"}`}
-          title={`${g.result} ${g.points}-${g.oppPoints} ${g.homeAway === "HOME" ? "vs" : "@"} ${g.opponent.abbreviation} · ${new Date(g.date).toLocaleDateString()}`}
+          title={`${g.result} ${g.points}-${g.oppPoints} ${g.homeAway === "HOME" ? "vs" : "@"} ${g.opponent.abbreviation} · ${gameDay(g.date).toLocaleDateString()}`}
         >
           {g.result}
         </span>

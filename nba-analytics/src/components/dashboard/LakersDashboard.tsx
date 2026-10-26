@@ -4,7 +4,7 @@ import Link from "next/link";
 import { format } from "date-fns";
 import { useTeamDashboard } from "@/lib/hooks/useDashboard";
 import { FOCUS_TEAM_ID } from "@/lib/constants";
-import { fmtNum, fmtPct, fmtSigned, ordinal } from "@/lib/format";
+import { fmtNum, fmtPct, fmtSigned, gameDay, ordinal } from "@/lib/format";
 import { PageSkeleton } from "@/components/ui/LoadingSkeleton";
 import { ErrorDisplay } from "@/components/ui/ErrorDisplay";
 import { RatingTrendChart } from "./RatingTrendChart";
@@ -239,7 +239,7 @@ function RecentGames({ data }: { data: TeamDashboardData }) {
     <ul className="divide-y divide-border-theme/60">
       {data.recentGames.map((g) => (
         <li key={g.gameId} className="flex items-center justify-between py-2 text-sm">
-          <span className="text-text-muted w-20">{format(new Date(g.date), "MMM d")}</span>
+          <span className="text-text-muted w-20">{format(gameDay(g.date), "MMM d")}</span>
           <span className="flex-1 text-text-primary">{g.homeAway === "HOME" ? "vs" : "@"} {g.opponent.abbreviation}</span>
           <span className={`font-mono font-semibold ${g.result === "W" ? "text-green-600 dark:text-green-400" : "text-red-500 dark:text-red-400"}`}>
             {g.result} {g.points}-{g.oppPoints}

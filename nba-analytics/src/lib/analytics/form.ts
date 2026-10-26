@@ -56,6 +56,67 @@ export function summarizeForm(logs: LogLine[], n?: number): FormSummary {
   };
 }
 
+/** A game log with full shooting and defensive counts — enough to rebuild a season line. */
+export interface BoxLogLine extends LogLine {
+  fgm: number;
+  fg3a: number;
+  ftm: number;
+  steals: number;
+  blocks: number;
+  turnovers: number;
+}
+
+export interface LogSeasonLine {
+  gamesPlayed: number;
+  minutes: number | null;
+  points: number;
+  rebounds: number;
+  assists: number;
+  steals: number;
+  blocks: number;
+  turnovers: number;
+  fgPct: number | null;
+  threePct: number | null;
+  threeAttempts: number;
+  ftPct: number | null;
+  tsPct: number | null;
+  plusMinus: number | null;
+}
+
+/**
+ * A season-to-date line from game logs (per-game averages over games played; percentages from
+ * totals). Used for "as of" views, where the stored season stats would include later games.
+ * null when the player hasn't played.
+ */
+export function seasonLineFromLogs(logs: BoxLogLine[]): LogSeasonLine | null {
+  const games = logs.filter(played);
+  const n = games.length;
+  if (!n) return null;
+  const sum = (f: (l: BoxLogLine) => number) => games.reduce((acc, l) => acc + f(l), 0);
+  const pct = (made: number, att: number) => (att > 0 ? made / att : null);
+  const pm = games.filter((l) => l.plusMinus != null);
+  const pts = sum((l) => l.points);
+  const fga = sum((l) => l.fga);
+  const fta = sum((l) => l.fta);
+  const fg3a = sum((l) => l.fg3a);
+  return {
+    gamesPlayed: n,
+    minutes: sum((l) => l.minutes ?? 0) / n,
+    points: pts / n,
+    rebounds: sum((l) => l.rebounds) / n,
+    assists: sum((l) => l.assists) / n,
+    steals: sum((l) => l.steals) / n,
+    blocks: sum((l) => l.blocks) / n,
+    turnovers: sum((l) => l.turnovers) / n,
+    fgPct: pct(sum((l) => l.fgm), fga),
+    threePct: pct(sum((l) => l.fg3m), fg3a),
+    threeAttempts: fg3a / n,
+    ftPct: pct(sum((l) => l.ftm), fta),
+    tsPct: trueShooting(pts, fga, fta),
+    plusMinus: pm.length ? pm.reduce((a, l) => a + (l.plusMinus ?? 0), 0) / pm.length : null,
+  };
+}
+
 export type Trend = "up" | "down" | "flat";
 
 export function trendOf(recent: number | null, season: number | null): Trend | null {

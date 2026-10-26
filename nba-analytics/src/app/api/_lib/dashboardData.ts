@@ -7,7 +7,7 @@ import { previousSeason, seasonStartYear } from '@/lib/constants'
 import { buildTeamProfiles, leagueBaseline, type GameRecord, type LeagueBaseline, type TeamProfile } from '@/lib/analytics/teamProfiles'
 import { RANKED_METRICS, rankProfiles, type TeamRanks } from '@/lib/analytics/ranks'
 import { classifyPlayer, gamesStartedByPlayer, roleMinutes, startKey } from '@/lib/analytics/roster'
-import { summarizeForm, trendOf, type LogLine } from '@/lib/analytics/form'
+import { seasonLineFromLogs, summarizeForm, trendOf, type BoxLogLine } from '@/lib/analytics/form'
 import { SMALL_SAMPLE_GAMES } from '@/lib/analytics/projection'
 import type {
   GameResultView,
@@ -93,9 +93,14 @@ export function toGameRecord(g: BoxScoreRow): GameRecord {
   }
 }
 
-export async function loadLeagueContext(season: string): Promise<LeagueContext> {
+/** `before`: only games played before this instant ("as of" a past date). */
+export interface AsOf {
+  before?: Date
+}
+
+export async function loadLeagueContext(season: string, opts: AsOf = {}): Promise<LeagueContext> {
   const rows = await prisma.gameBoxScore.findMany({
-    where: { season, isPlayoff: false },
+    where: { season, isPlayoff: false, ...(opts.before ? { gameDate: { lt: opts.before } } : {}) },
     orderBy: { gameDate: 'asc' },
   })
   const records = rows.map(toGameRecord)
@@ -126,8 +131,12 @@ function profileView(profile: TeamProfile | undefined, ranks: TeamRanks | undefi
 
 // ── Standings ────────────────────────────────────────────────────────────────
 
-export async function loadStandings(season: string): Promise<Map<string, StandingView>> {
-  const rows = await prisma.standing.findMany({ where: { season }, orderBy: { asOfDate: 'desc' } })
+export async function loadStandings(season: string, opts: AsOf = {}): Promise<Map<string, StandingView>> {
+  // as of a past date: only snapshots taken before it (none → no standings, never a later one)
+  const rows = await prisma.standing.findMany({
+    where: { season, ...(opts.before ? { asOfDate: { lt: opts.before } } : {}) },
+    orderBy: { asOfDate: 'desc' },
+  })
   const out = new Map<string, StandingView>()
   const rec = (w: number | null, l: number | null) => (w != null && l != null ? `${w}-${l}` : null)
   for (const s of rows) {
@@ -224,6 +233,36 @@ export async function loadUpcoming(
   })
 }
 
+/** The team's scheduled game on one league (ET) date, shaped like an upcoming game — for "as of" views. */
+export async function loadGameOn(
+  season: string,
+  teams: Map<string, TeamRefLite>,
+  opts: { teamId: string; dateEt: string; opponentId?: string },
+): Promise<UpcomingGameView | null> {
+  const g = await prisma.scheduledGame.findFirst({
+    where: {
+      season,
+      gameDateEt: opts.dateEt,
+      AND: [
+        { OR: [{ homeTeamId: opts.teamId }, { awayTeamId: opts.teamId }] },
+        ...(opts.opponentId ? [{ OR: [{ homeTeamId: opts.opponentId }, { awayTeamId: opts.opponentId }] }] : []),
+      ],
+    },
+  })
+  if (!g) return null
+  const isHome = g.homeTeamId === opts.teamId
+  const oppId = isHome ? g.awayTeamId : g.homeTeamId
+  return {
+    gameId: g.gameId,
+    dateUtc: g.gameDateUtc.toISOString(),
+    statusText: g.statusText,
+    opponent: teams.get(oppId) ?? unknownTeam(oppId),
+    homeAway: isHome ? 'HOME' : 'AWAY',
+    arena: g.arena,
+    nationalTv: g.nationalTv,
+  }
+}
+
 export async function hasSchedule(season: string): Promise<boolean> {
   return (await prisma.scheduledGame.count({ where: { season } })) > 0
 }
@@ -304,6 +343,13 @@ function toLine(s: SeasonStatsRow, teams: Map<string, TeamRefLite>, starts: Map<
   }
 }
 
+/** Season line rebuilt from game logs; usage and net rating need data logs don't carry, so they stay null. */
+function logLine(logs: BoxLogLine[], season: string, teamAbbr: string | null): PlayerLine | null {
+  const l = seasonLineFromLogs(logs)
+  if (!l) return null
+  return { season, teamAbbr, gamesStarted: null, usageRate: null, netRating: null, ...l }
+}
+
 function pickRow(rows: SeasonStatsRow[], preferTeamId: string): SeasonStatsRow | undefined {
   return rows.find((r) => r.teamId === preferTeamId) ?? [...rows].sort((a, b) => b.gamesPlayed - a.gamesPlayed)[0]
 }
@@ -319,13 +365,17 @@ export async function loadRoster(
   season: string,
   teams: Map<string, TeamRefLite>,
   injuries: InjuryView[] = [],
+  opts: AsOf = {},
 ): Promise<RosterBundle> {
   const prev = previousSeason(season)
   const players = await prisma.player.findMany({ where: { teamId, isActive: true } })
   const ids = players.map((p) => p.id)
   const [stats, logs, starts] = await Promise.all([
     prisma.playerSeasonStats.findMany({ where: { playerId: { in: ids }, season: { in: [season, prev] } } }),
-    prisma.playerGameLog.findMany({ where: { teamId, season }, orderBy: { gameDate: 'asc' } }),
+    prisma.playerGameLog.findMany({
+      where: { teamId, season, ...(opts.before ? { gameDate: { lt: opts.before } } : {}) },
+      orderBy: { gameDate: 'asc' },
+    }),
     loadGamesStarted(ids, [season, prev]),
   ])
 
@@ -335,7 +385,7 @@ export async function loadRoster(
     if (!statsBy.has(key)) statsBy.set(key, [])
     statsBy.get(key)!.push(s)
   }
-  const logsBy = new Map<string, LogLine[]>()
+  const logsBy = new Map<string, BoxLogLine[]>()
   for (const l of logs) {
     if (!logsBy.has(l.playerId)) logsBy.set(l.playerId, [])
     logsBy.get(l.playerId)!.push({
@@ -349,6 +399,12 @@ export async function loadRoster(
       fg3m: l.threePointers,
       plusMinus: l.plusMinus,
       dnp: l.dnp,
+      fgm: l.fieldGoals,
+      fg3a: l.threePointAtt,
+      ftm: l.freeThrows,
+      steals: l.steals,
+      blocks: l.blocks,
+      turnovers: l.turnovers,
     })
   }
   const injuryBy = new Map(injuries.filter((i) => i.playerId).map((i) => [i.playerId!, i]))
@@ -371,14 +427,16 @@ export async function loadRoster(
     const playerLogs = logsBy.get(p.id) ?? []
     const last5 = summarizeForm(playerLogs, 5)
     const seasonForm = summarizeForm(playerLogs)
-    const gp = cur?.gamesPlayed ?? seasonForm.games
+    // As of a past date the stored season stats include later games: rebuild the line from logs
+    const current = opts.before ? logLine(playerLogs, season, teams.get(teamId)?.abbreviation ?? null) : cur ? toLine(cur, teams, starts) : null
+    const gp = opts.before ? seasonForm.games : (cur?.gamesPlayed ?? seasonForm.games)
     return {
       player: { id: p.id, fullName: p.fullName, position: p.position, jersey: p.jersey, headshotUrl: p.headshotUrl },
       status: classification.status,
-      current: cur ? toLine(cur, teams, starts) : null,
+      current,
       baseline: base ? toLine(base, teams, starts) : null,
       last5,
-      pointsTrend: trendOf(last5.points, cur?.pointsPerGame ?? seasonForm.points),
+      pointsTrend: trendOf(last5.points, current?.points ?? seasonForm.points),
       smallSample: gp < SMALL_SAMPLE_GAMES,
       injury: injuryBy.get(p.id) ?? injuryByName.get(p.fullName.toLowerCase()) ?? null,
     }

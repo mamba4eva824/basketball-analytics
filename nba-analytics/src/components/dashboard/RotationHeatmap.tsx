@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { format } from "date-fns";
 import { useThemeColors } from "@/lib/ThemeContext";
+import { gameDay } from "@/lib/format";
 import { StatusBadge } from "./primitives";
 import type { RotationView } from "@/lib/dashboard-types";
 
@@ -18,7 +19,7 @@ export function RotationHeatmap({ rotation }: { rotation: RotationView }) {
           <tr>
             <th className="text-left font-medium text-text-muted px-1 sticky left-0 bg-surface backdrop-blur">Player</th>
             {rotation.games.map((g) => (
-              <th key={g.gameId} className="font-normal text-text-faint px-0.5 min-w-9" title={format(new Date(g.date), "PP")}>
+              <th key={g.gameId} className="font-normal text-text-faint px-0.5 min-w-9" title={format(gameDay(g.date), "PP")}>
                 <div>{g.opponentAbbr}</div>
                 <div className={g.result === "W" ? "text-green-600 dark:text-green-400" : "text-red-500 dark:text-red-400"}>{g.result}</div>
               </th>

@@ -1,12 +1,12 @@
 import { Suspense } from "react";
-import { MatchupDashboard } from "@/components/dashboard/MatchupDashboard";
+import { MatchupView } from "@/components/dashboard/MatchupView";
 import { PageSkeleton } from "@/components/ui/LoadingSkeleton";
 
 export default function MatchupPage() {
-  // MatchupDashboard reads ?opponent= via useSearchParams, which needs a Suspense boundary
+  // MatchupView reads ?view= and MatchupDashboard ?opponent= via useSearchParams, which needs a Suspense boundary
   return (
     <Suspense fallback={<PageSkeleton />}>
-      <MatchupDashboard />
+      <MatchupView />
     </Suspense>
   );
 }
