@@ -16,6 +16,16 @@ curl -s "http://localhost:4000/api/matchup?opponent=1610612744" | jq .data   # s
 
 Team IDs: `SELECT id, abbreviation FROM "Team" ORDER BY 2`.
 
+**Backfilling a past game:** add `asOf=YYYY-MM-DD` (the ET game date). Only games before that
+day count — team ratings, ranks, projection, player lines (rebuilt from game logs) and
+standings snapshots — and the opponent defaults to that day's game. Rosters are today's and
+injuries are omitted (no history). Say "Backfilled on <date> with data as of before tip-off" at
+the top, and skip the Availability section's content.
+
+```bash
+curl -s "http://localhost:4000/api/matchup?asOf=2026-10-23" | jq .data
+```
+
 Check `data.dataNotes` and `data.season.isDemo` first. **If the season is demo data, say so
 at the top of the report and do not present numbers as real.**
 

@@ -14,6 +14,9 @@ tests in the same commit — and vice versa.
 - Percentages: decimals 0–1 (`0.534`, never `53.4`). Format with `fmtPct()` at render time.
 - Ratings: points per 100 possessions. Pace: possessions per game (not per 48 — box scores carry no minutes).
 - Season strings: `"2026-27"` (start year + 2-digit end year).
+- Game dates (`GameBoxScore.gameDate`) are calendar days stored at 00:00 UTC: display them with
+  `gameDay()` from `format.ts`, never `new Date(iso)` (that shows the previous day in US time zones).
+  Tip-off times (`ScheduledGame.gameDateUtc`) are real instants and format normally.
 
 ## Team metrics (box-score derived, `teamProfiles.ts`)
 
@@ -124,6 +127,66 @@ factor (and our defense vs their offense):
 
 - `rankGap = theirRank − ourRank` (positive = we rank better).
 - `rankGap ≥ 6` → `advantage`, `rankGap ≤ −6` → `disadvantage`, otherwise `even`.
+
+## As-of matchups (`/api/matchup?asOf=`)
+
+`asOf` = an ET game date. Games count when `gameDate < asOf` (stored dates are ET days at 00:00
+UTC). Player season lines come from `seasonLineFromLogs` over logs before the date (per-game means
+over games played; percentages from totals; usage / net rating / GS are null — logs don't carry
+them). Standings use only snapshots taken before the date (none → "—"). Injuries are omitted.
+
+## Metric trends (`metricTrend.ts`, `/advanced`)
+
+For each team game, oldest first, every ranked metric three ways: the **game** alone, the
+**rolling** last 5 games and the season **to date** — each a `buildTeamProfiles` profile over that
+set of games, so windows aggregate totals before dividing (never a mean of per-game ratios) and
+the last game's to-date value equals the season rank's value. The chart draws the per-game values
+as a monotone curve (smooth, never overshoots a real game) and the season rate as a dashed line.
+
+## Live game (`live.ts`, `/matchup?view=live`)
+
+Built from the NBA live feed for one game in progress; nothing is stored.
+
+- **Four factors / ratings**: the season formulas above on the game's running box score.
+  Possessions per team as above; ORtg = `100 · PTS / mean(both teams' possessions)`. TOV uses
+  `turnoversTotal` (player + team turnovers, matching LeagueGameLog); OREB/DREB are player
+  rebounds. Rates are `null` (shown "—") until the denominator is > 0. Label them estimates —
+  single-game samples swing fast.
+- **Scoring events**: every change in `scoreHome`/`scoreAway` in the play-by-play, ordered by
+  `orderNumber` (not `actionNumber`).
+- **Current run**: unanswered points by the team that scored last, back to the opponent's last score.
+- **Longest run / biggest lead / time leading**: per side, from the scoring events (time leading
+  = seconds the side was ahead between scores, up to now). Not the feed's own fields, which
+  only update at period breaks.
+- **Lineup stint**: the five with `oncourt = 1`; the stint starts at the team's last substitution
+  in the current period, else the period start, so it is never longer than the period. Margin =
+  score change since then. Shown only while the game is live.
+- **Foul trouble**: `PF ≥ min(period + 1, 5)` (2 in Q1, 3 in Q2, 4 in Q3, 5 in Q4/OT);
+  6 = fouled out.
+- **Game clock → elapsed**: 12-minute regulation periods, 5-minute overtimes.
+- Shot coordinates are `xLegacy`/`yLegacy` (same system as the stats.nba.com shot chart).
+
+## Post-game facts (`postgame.ts`, `postgame-report` skill)
+
+Built on the live-game scoring events (corrections already netted out):
+- **Unanswered runs**: consecutive scores by one side; listed at 7+ points.
+- **Best net stretch**: the largest (points for − points against) between any two scores — the
+  comeback / blowout window, reported with the score before and after.
+- **Lead for good**: the score after which the focus team never trailed or was tied again;
+  `null` if it didn't win.
+- **Closing stretch**: points each side scored in the last 5:00 of the final period, and the
+  focus team's scorers.
+- **Checks**: period scores, player points and play-by-play points must each sum to the final.
+
+## Schedule (`schedule.ts`, `/schedule`)
+
+- Days are the NBA's US Eastern game date (`gameDateEt`); tip-off times render in the viewer's zone.
+- **Rest days** = calendar days between consecutive games − 1; **back-to-back** = 0 rest days
+  (flagged on the second night).
+- **State**: `final` needs status 3 *and* both scores; `today` = today's ET date (links to the
+  In-game tab); a non-final game > 4 h past tip-off is `pending` (shows "—" until the next
+  refresh), never a guessed result.
+- Fewer than 82 scheduled games → say how many aren't set yet (NBA Cup knockout dates).
 
 ## Things that are NOT available — don't fake them
 

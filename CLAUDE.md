@@ -8,15 +8,18 @@ reads it through Prisma and renders two primary dashboards in the browser:
 |--------------|-------------------------------------------------------------------------------|
 | `/`          | How are the Lakers and each player on the new roster performing?             |
 | `/matchup`   | Who do we play next, how good are they, and where do we have the edge?       |
+| `/advanced`  | Advanced Team Analytics: any team metric game by game, 5-game average, season rate |
+| `/matchup?view=postgame` | Post-game tab: saved post-game (and pre-game) reports from `scouting/`, rendered |
+| `/matchup?view=live` | In-game tab: live score, flow, four factors, box score, shots for today's game |
 
-Supporting pages: `/standings`, `/roster`, `/games`, `/players/[id]`, `/players/[id]/shots`, `/teams/[id]`.
+Supporting pages: `/schedule` (month calendar + list, rest days, back-to-backs), `/standings`, `/roster`, `/games`, `/players/[id]`, `/players/[id]/shots`, `/teams/[id]`.
 
 ## Layout
 
 ```
 CLAUDE.md                     ← you are here (project-wide rules)
 .claude/skills/               ← task playbooks (see "Skills" below)
-scouting/                     ← saved pre-game scouting reports (one .md per game, see its README)
+scouting/                     ← saved pre-game scouting reports and post-game analyses (see its README)
 nba-analytics/
   etl/                        ← Python ETL (nba_api → Postgres). config.py owns season + team constants
   prisma/schema.prisma        ← single source of truth for the DB schema (no migrations dir; use db push)
@@ -25,9 +28,14 @@ nba-analytics/
   src/lib/dashboard-types.ts  ← response types for the aggregate dashboard endpoints
   src/app/api/dashboard/…     ← aggregate endpoint for `/`
   src/app/api/matchup/…       ← aggregate endpoint for `/matchup`
+  src/app/api/live/…          ← today's game from the NBA live feed (proxied; no DB)
+  src/app/api/reports/…       ← saved reports read from ../scouting/*.md (local checkout only)
+  src/app/api/advanced/…      ← per-game metric trends for `/advanced`
+  src/app/api/schedule/…      ← focus-team schedule from ScheduledGame (results, rest, B2B)
   src/components/dashboard/   ← dashboard + matchup UI
   scripts/seed-demo-data.ts   ← synthetic data for UI dev / e2e (NOT real stats)
   scripts/seed-test-data.ts   ← minimal fixtures for the API integration tests
+  scripts/postgame-data.ts    ← post-game facts for one game from the NBA live feed (postgame-report skill)
 ```
 
 `nba-analytics/AGENTS.md` applies too: this is Next.js 16 — read the bundled docs in
@@ -102,6 +110,13 @@ Formulas, thresholds and the matchup projection model are documented in
 - **stats.nba.com via `nba_api`** (primary, free, no key; 139 stats endpoints, ~16 used). Blocks
   cloud/datacenter IPs — run the ETL from a home connection. Throttle ≥0.6 s between calls
   (`utils.safe_call`).
+- **NBA live feed** (`cdn.nba.com/static/json/liveData`: scoreboard, boxscore, playbyplay — the
+  same JSON `nba_api.live` wraps). Read on demand by `/api/live` (`src/app/api/_lib/nbaLive.ts`),
+  never stored. Needs browser-like headers (bare requests get 403), only allows nba.com via CORS
+  (so the browser can't call it directly), and blocks cloud IPs like stats.nba.com — the In-game
+  tab works when the app runs on a home connection. The feed's own `timeLeading` /
+  `biggestScoringRun` only update at period breaks, so leads and runs are computed from the
+  play-by-play. It also carries sportsbook odds (`odds/odds_todaysGames.json`), deliberately unused.
 - **ESPN public site API** (injuries only, optional, unofficial — `etl/fetch_injuries.py`).
   If it breaks, the matchup page simply hides the availability panel.
 - Considered but not integrated: BallDontLie (free tier lacks advanced stats), Sportradar /
@@ -130,3 +145,4 @@ Formulas, thresholds and the matchup projection model are documented in
 | `season-rollover`    | A new season starts or the roster changes significantly           |
 | `basketball-metrics` | Adding/changing any metric, rank, threshold or the projection      |
 | `scouting-report`    | Writing a narrative pre-game report from `/api/matchup`           |
+| `postgame-report`    | Post-game analysis of a finished game, graded against its scouting report |
