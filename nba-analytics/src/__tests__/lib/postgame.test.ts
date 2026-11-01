@@ -46,11 +46,11 @@ describe('postgame facts', () => {
     expect(s.AWY[3]).toMatchObject({ period: 'Q4', pts: 14, fgm: 5, fga: 5, fg3m: 3, ftm: 1, fta: 1 })
   })
 
-  it('lists unanswered runs of the minimum size', () => {
-    expect(unansweredRuns(events, { home: 'HOM', away: 'AWY' }, 6)).toEqual([
-      { tricode: 'HOM', points: 7, since: 'Q1 11:00' },
-      { tricode: 'AWY', points: 6, since: 'Q4 6:00' },
-      { tricode: 'AWY', points: 8, since: 'Q4 3:00' },
+  it('lists unanswered runs of the minimum size, with the score before and after', () => {
+    expect(unansweredRuns(events, { home: 'HOM', away: 'AWY' }, false, 6)).toEqual([
+      { tricode: 'HOM', points: 7, since: 'Q1 11:00', until: 'Q1 9:00', fromScore: '0-0', toScore: '0-7' },
+      { tricode: 'AWY', points: 6, since: 'Q4 6:00', until: 'Q4 5:30', fromScore: '0-7', toScore: '6-7' },
+      { tricode: 'AWY', points: 8, since: 'Q4 3:00', until: 'Q4 0:30', fromScore: '6-9', toScore: '14-9' },
     ])
   })
 
@@ -59,9 +59,31 @@ describe('postgame facts', () => {
     expect(bestStretch(events, true, false)).toMatchObject({ net: 7, fromScore: '0-0', toScore: '0-7' })
   })
 
-  it('finds when the lead was taken for good, or null after a loss', () => {
-    expect(leadForGood(events, false)).toEqual({ at: 'Q4 2:00', score: '11-9' })
-    expect(leadForGood(events, true)).toBeNull()
+  it('finds when the winner took the lead for good, whichever side won', () => {
+    const tricodes = { home: 'HOM', away: 'AWY' }
+    expect(leadForGood(events, false, tricodes)).toEqual({ tricode: 'AWY', at: 'Q4 2:00', score: '11-9' })
+    // same game from the home (losing) side: still AWY's go-ahead, score from HOM's view
+    expect(leadForGood(events, true, tricodes)).toEqual({ tricode: 'AWY', at: 'Q4 2:00', score: '9-11' })
+  })
+
+  it('has no lead for good in a tie', () => {
+    // act(), not game(): game() resets the shared order counter later tests build on
+    const tied = scoringEvents([
+      act({ teamTricode: 'HOM', actionType: '2pt', shotResult: 'Made', scoreHome: '2', scoreAway: '0' }),
+      act({ teamTricode: 'AWY', actionType: '2pt', shotResult: 'Made', scoreHome: '2', scoreAway: '2' }),
+    ])
+    expect(leadForGood(tied, false, { home: 'HOM', away: 'AWY' })).toBeNull()
+  })
+
+  it('counts personal fouls per period like the box score, leaving out technicals', () => {
+    const fouls = [
+      act({ period: 2, teamTricode: 'HOM', actionType: 'foul', subType: 'personal', descriptor: 'shooting', personId: 2 }),
+      act({ period: 2, teamTricode: 'HOM', actionType: 'foul', subType: 'offensive', descriptor: 'charge', personId: 2 }),
+      act({ period: 2, teamTricode: 'HOM', actionType: 'foul', subType: 'personal', descriptor: 'flagrant-type-1', personId: 2 }),
+      act({ period: 2, teamTricode: 'HOM', actionType: 'foul', subType: 'technical', descriptor: 'flopping', personId: 2 }),
+      act({ period: 2, teamTricode: 'HOM', actionType: 'foul', subType: 'technical', descriptor: 'defensive-3-second', personId: 2 }),
+    ]
+    expect(periodSplits(fouls, ['AWY', 'HOM'], 4).HOM[1].pf).toBe(3)
   })
 
   it('takes period points from the score, so a basket taken back does not count', () => {

@@ -34,9 +34,10 @@ Lead with the result and the one-sentence story. Every claim cites a number from
 
 1. **Result** — final, record after the game, line score table (`game.focus/opponent.periods`).
    One line each on the comeback or blowout (`bestStretch`), lead changes / ties, and when the
-   lead was taken for good (`leadForGood`), with the score.
+   winner took the lead for good (`leadForGood`: `tricode`, clock, score — set in losses too).
 2. **How it happened** — one bullet per period from `periods[tricode][i]` (shooting, threes,
-   FTs, turnovers, offensive rebounds) plus `runs`. Close with the final stretch
+   FTs, turnovers, offensive rebounds, personal fouls) plus `runs` (each with its start/end
+   clock and the score before and after). Close with the final stretch
    (`closing`: score at 5:00 left, points each side, who scored them).
 3. **Four factors** — table from `game.*.factors` (ORtg, eFG%, TOV%, OREB%, FTA rate) with the
    side that won each; then the scoring splits that explain it (paint, second chance, fast

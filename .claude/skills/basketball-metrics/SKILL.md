@@ -166,16 +166,40 @@ Built from the NBA live feed for one game in progress; nothing is stored.
 - **Game clock → elapsed**: 12-minute regulation periods, 5-minute overtimes.
 - Shot coordinates are `xLegacy`/`yLegacy` (same system as the stats.nba.com shot chart).
 
+## Spoken play-by-play (`playCalls.ts`)
+
+Sentences for a text-to-speech voice, built only from the play's structured fields (shooter,
+`descriptor` shot style, rounded `shotDistance`, assist / block / steal / foul-drawn person, the
+score after the play). The feed's shorthand `description` is never read aloud.
+- **Priority**: 1 = made baskets, free-throw trips with a make, period/game start and end ·
+  2 = blocks, steals, turnovers, charges, technicals/flagrants, timeouts, challenges, goaltending,
+  scoreless trips, foul trouble · 3 = misses, rebounds, other fouls, substitutions, jump balls.
+- **Levels**: `everything` = all; `highlights` = priority ≤ 2; `focus` = priority 1 plus the
+  priority-2 calls that involve the focus team (actor, stealer or blocker).
+- **Merged plays**: a free-throw trip is one call on its last shot (per shooter, so substitutions
+  in between don't split it); a 1-of-1 at the same clock as the shooter's make is the and-one.
+  Steals and blocks are called from the turnover / missed shot; the offensive-foul turnover from
+  the foul.
+- **Score note**: first basket, tie, back in front (from a tie), lead change, else margin; the
+  full score in the last 2:00 of the 4th/OT, which also prefixes calls with the clock.
+- **Runs**: unanswered points (a score taken back resets them), announced on first reaching
+  8, 10, 12, 15 and 20. **Player milestones**: 20, 30, 40, 50 points.
+- **Names**: family name from the box score; the full name when two players in the game share one.
+- Wording varies by `actionNumber`, so a replayed play always gets the same sentence.
+
 ## Post-game facts (`postgame.ts`, `postgame-report` skill)
 
 Built on the live-game scoring events (corrections already netted out):
-- **Unanswered runs**: consecutive scores by one side; listed at 7+ points.
+- **Unanswered runs**: consecutive scores by one side; listed at 7+ points, with the clock of the
+  first and last basket and the score before and after.
 - **Best net stretch**: the largest (points for − points against) between any two scores — the
   comeback / blowout window, reported with the score before and after.
-- **Lead for good**: the score after which the focus team never trailed or was tied again;
-  `null` if it didn't win.
+- **Lead for good**: the score after which the winner (either team, named by `tricode`) never
+  trailed or was tied again; `null` only for a tie. The score reads focus–opponent.
 - **Closing stretch**: points each side scored in the last 5:00 of the final period, and the
   focus team's scorers.
+- **Quarter fouls**: personal fouls (incl. offensive and flagrant), not technicals — matching the
+  box score's `foulsPersonal`. A mismatch is a warning (a rescinded foul), not a failed check.
 - **Checks**: period scores, player points and play-by-play points must each sum to the final.
 
 ## Schedule (`schedule.ts`, `/schedule`)

@@ -1,8 +1,9 @@
 "use client";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import Link from "next/link";
 import { format } from "date-fns";
 import { useLiveGame } from "@/lib/hooks/useLiveGame";
+import { useSpokenPlays, type SpokenPlays } from "@/lib/hooks/useSpokenPlays";
 import { useSchedule } from "@/lib/hooks/useSchedule";
 import { useThemeColors } from "@/lib/ThemeContext";
 import { fmtNum, fmtPct, fmtSigned, gameDay } from "@/lib/format";
@@ -27,7 +28,8 @@ import type {
 
 /**
  * In-game tracking from the NBA live feed: today's Lakers game by default (polled every 15 s while
- * live), or any earlier game picked from the schedule, replayed from its final feed.
+ * live, every 4 s while plays are read aloud), or any earlier game picked from the schedule,
+ * replayed from its final feed.
  */
 export function LiveGameView({ gameId, onSelectGame }: { gameId?: string; onSelectGame: (gameId: string | null) => void }) {
   return (
@@ -38,8 +40,17 @@ export function LiveGameView({ gameId, onSelectGame }: { gameId?: string; onSele
   );
 }
 
+interface VoiceControl extends SpokenPlays {
+  on: boolean;
+  toggle: () => void;
+}
+
 function LiveGameBody({ gameId }: { gameId?: string }) {
-  const { data, isLoading, error, isFetching, dataUpdatedAt, refetch } = useLiveGame(gameId);
+  const [voiceOn, setVoiceOn] = useState(false);
+  const { data, isLoading, error, isFetching, dataUpdatedAt, refetch } = useLiveGame(gameId, { calls: voiceOn });
+  const live = data?.kind === "live" ? data : null;
+  const spoken = useSpokenPlays(live?.calls, { enabled: voiceOn, level: "focus", focusTricode: live?.game.focus.tricode ?? "" });
+  const voice: VoiceControl = { ...spoken, on: voiceOn, toggle: () => setVoiceOn((v) => !v) };
 
   if (isLoading) return <PageSkeleton />;
   if (error || !data) {
@@ -53,7 +64,7 @@ function LiveGameBody({ gameId }: { gameId?: string }) {
   }
   if (data.kind === "none") return <NoGameToday next={data.next} />;
   if (data.kind === "pregame") return <Pregame game={data.pregame} />;
-  return <LiveGame game={data.game} updatedAt={dataUpdatedAt} refreshing={isFetching} />;
+  return <LiveGame game={data.game} updatedAt={dataUpdatedAt} refreshing={isFetching} voice={voice} />;
 }
 
 /** Today's game (live) or any finished Lakers game this season, newest first. */
@@ -126,7 +137,20 @@ function PregameTeam({ t }: { t: LivePregameView["focus"] }) {
 
 // ── Live / final ─────────────────────────────────────────────────────────────
 
-function LiveGame({ game, updatedAt, refreshing }: { game: LiveGameData; updatedAt: number; refreshing: boolean }) {
+function VoiceStatus({ voice, live }: { voice: VoiceControl; live: boolean }) {
+  let text: ReactNode;
+  if (voice.error) text = voice.error;
+  else if (voice.speaking) text = <>Saying: “{voice.speaking}”{voice.waiting > 0 && ` · ${voice.waiting} more waiting`}</>;
+  else if (live) text = "Listening for the next play: every score and quarter break, plus Lakers highlights.";
+  else text = "This game is over, so there are no new plays to read.";
+  return (
+    <p role="status" className={`-mt-2 mb-4 text-xs ${voice.error ? "text-red-500" : "text-text-muted"}`}>
+      {text}
+    </p>
+  );
+}
+
+function LiveGame({ game, updatedAt, refreshing, voice }: { game: LiveGameData; updatedAt: number; refreshing: boolean; voice: VoiceControl }) {
   const c = useThemeColors();
   const us = game.focus;
   const them = game.opponent;
@@ -137,7 +161,7 @@ function LiveGame({ game, updatedAt, refreshing }: { game: LiveGameData; updated
 
   return (
     <div className="space-y-6">
-      <Scoreboard game={game} updatedAt={updatedAt} refreshing={refreshing} />
+      <Scoreboard game={game} updatedAt={updatedAt} refreshing={refreshing} voice={voice} />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <StatCard
@@ -221,7 +245,7 @@ function minutesLabel(min: number): string {
 
 // ── Scoreboard ───────────────────────────────────────────────────────────────
 
-function Scoreboard({ game, updatedAt, refreshing }: { game: LiveGameData; updatedAt: number; refreshing: boolean }) {
+function Scoreboard({ game, updatedAt, refreshing, voice }: { game: LiveGameData; updatedAt: number; refreshing: boolean; voice: VoiceControl }) {
   const away = game.focus.isHome ? game.opponent : game.focus;
   const home = game.focus.isHome ? game.focus : game.opponent;
   const periods = Math.max(game.regulationPeriods, away.periods.length, home.periods.length);
@@ -234,13 +258,24 @@ function Scoreboard({ game, updatedAt, refreshing }: { game: LiveGameData; updat
           {live && <span className="h-2 w-2 rounded-full bg-red-500 animate-pulse" aria-hidden />}
           {live ? "Live" : game.statusText}
         </span>
-        <span className="text-text-faint">
-          {game.arena && <>{game.arena} · </>}
-          Updated {format(new Date(updatedAt), "h:mm:ss a")}
-          {live && " · refreshes every 15 s"}
-          {refreshing && " · refreshing…"}
-        </span>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-text-faint">
+            {game.arena && <>{game.arena} · </>}
+            Updated {format(new Date(updatedAt), "h:mm:ss a")}
+            {live && ` · refreshes every ${voice.on ? 4 : 15} s`}
+            {refreshing && " · refreshing…"}
+          </span>
+          <button
+            onClick={voice.toggle}
+            aria-pressed={voice.on}
+            title="Reads every score and quarter break, plus Lakers highlights, in a local Ollama voice"
+            className={`px-2.5 py-1 rounded-md border transition-colors ${voice.on ? "bg-lakers-purple text-white border-lakers-purple" : "border-border-theme text-text-muted hover:text-text-primary"}`}
+          >
+            <span aria-hidden>{voice.on ? "🔊" : "🔈"}</span> Read plays aloud
+          </button>
+        </div>
       </div>
+      {voice.on && <VoiceStatus voice={voice} live={live} />}
 
       <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 md:gap-6">
         <ScoreSide team={away} align="left" />

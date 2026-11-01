@@ -6,10 +6,13 @@ import { loadTeamRefs, loadUpcoming } from '@/app/api/_lib/dashboardData'
 import { LiveFeedError, fetchBoxScore, fetchPlayByPlay, fetchScoreboard, type RawScoreboardGame } from '@/app/api/_lib/nbaLive'
 import { CURRENT_SEASON, FOCUS_TEAM_ID } from '@/lib/constants'
 import { buildLiveGame } from '@/lib/analytics/live'
+import { callContext, playCalls } from '@/lib/analytics/playCalls'
 import type { LiveGameResponse, LivePregameView, UpcomingGameView } from '@/lib/dashboard-types'
 
 const querySchema = z.object({
   game: z.string().regex(/^\d{10}$/, 'Game ID must be a 10-digit NBA game ID').optional(),
+  /** include the spoken play-by-play (In-game tab, "Read plays aloud") */
+  calls: z.enum(['0', '1']).optional(),
 })
 
 function involvesFocus(g: { homeTeam: { teamId: number }; awayTeam: { teamId: number } }) {
@@ -41,12 +44,13 @@ async function nextScheduled(): Promise<UpcomingGameView | null> {
   }
 }
 
-async function liveResponse(gameId: string): Promise<Response | null> {
+async function liveResponse(gameId: string, withCalls: boolean): Promise<Response | null> {
   const box = await fetchBoxScore(gameId)
   if (!box || box.gameStatus < 2) return null
   if (!involvesFocus(box)) return badRequest(`Game ${gameId} does not involve the focus team`)
   const actions = await fetchPlayByPlay(gameId)
   const body: LiveGameResponse = { kind: 'live', game: buildLiveGame(box, actions, FOCUS_TEAM_ID, new Date()) }
+  if (withCalls) body.calls = playCalls(actions, callContext(box, FOCUS_TEAM_ID), 'everything')
   return successResponse(body)
 }
 
@@ -54,9 +58,10 @@ export async function GET(request: NextRequest) {
   const parsed = parseSearchParams(request.nextUrl.searchParams, querySchema)
   if (!parsed.success) return badRequest(parsed.error)
 
+  const withCalls = parsed.data.calls === '1'
   try {
     if (parsed.data.game) {
-      return (await liveResponse(parsed.data.game)) ?? notFound(`No live box score for game ${parsed.data.game} yet`)
+      return (await liveResponse(parsed.data.game, withCalls)) ?? notFound(`No live box score for game ${parsed.data.game} yet`)
     }
 
     const today = (await fetchScoreboard()).find(involvesFocus)
@@ -64,7 +69,7 @@ export async function GET(request: NextRequest) {
       const body: LiveGameResponse = { kind: 'none', next: await nextScheduled() }
       return successResponse(body)
     }
-    const live = await liveResponse(today.gameId)
+    const live = await liveResponse(today.gameId, withCalls)
     if (live) return live
     const body: LiveGameResponse = { kind: 'pregame', pregame: pregameView(today) }
     return successResponse(body)

@@ -14,6 +14,7 @@ import type { RankedMetric } from "@/lib/analytics/ranks";
 import type { RosterStatus } from "@/lib/analytics/roster";
 import type { FormSummary, Trend } from "@/lib/analytics/form";
 import type { LiveGameData } from "@/lib/analytics/live";
+import type { PlayCall } from "@/lib/analytics/playCalls";
 import type { ScheduleEntry, ScheduleSummary } from "@/lib/analytics/schedule";
 
 export type { FactorEdge, RankedMetric, RosterStatus, FormSummary, Trend };
@@ -29,6 +30,7 @@ export type {
   LiveTeamView,
   MarginPoint,
 } from "@/lib/analytics/live";
+export type { CallLevel, PlayCall } from "@/lib/analytics/playCalls";
 export type { ScheduleState, ScheduleSummary } from "@/lib/analytics/schedule";
 
 export interface TeamRefLite {
@@ -289,9 +291,12 @@ export interface LiveStatus {
   live: boolean;
 }
 
-/** Today's focus-team game from the NBA live feed: in progress / final, not yet tipped, or none today. */
+/**
+ * Today's focus-team game from the NBA live feed: in progress / final, not yet tipped, or none today.
+ * `calls` (with `?calls=1`): every spoken play-by-play call, all levels — the client filters.
+ */
 export type LiveGameResponse =
-  | { kind: "live"; game: LiveGameData }
+  | { kind: "live"; game: LiveGameData; calls?: PlayCall[] }
   | { kind: "pregame"; pregame: LivePregameView }
   | { kind: "none"; next: UpcomingGameView | null };
 

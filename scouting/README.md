@@ -12,3 +12,6 @@ Pre-game reports written with the `scouting-report` skill from `/api/matchup`, a
 | 2026-10-21 | Warriors @ Lakers | [2026-10-21-GSW-at-LAL.md](2026-10-21-GSW-at-LAL.md) (backfilled, as of Oct 21) | [W 127-105](2026-10-21-GSW-at-LAL-postgame.md) |
 | 2026-10-23 | Clippers @ Lakers | [2026-10-23-LAC-at-LAL.md](2026-10-23-LAC-at-LAL.md) (backfilled, as of Oct 23) | [W 125-117](2026-10-23-LAC-at-LAL-postgame.md) |
 | 2026-10-25 | Lakers @ Jazz | [2026-10-25-LAL-at-UTA.md](2026-10-25-LAL-at-UTA.md) | [W 132-123](2026-10-25-LAL-at-UTA-postgame.md) |
+| 2026-10-27 | Trail Blazers @ Lakers | [2026-10-27-POR-at-LAL.md](2026-10-27-POR-at-LAL.md) (backfilled, as of Oct 27) | [L 129-136](2026-10-27-POR-at-LAL-postgame.md) |
+| 2026-10-28 | Lakers @ Clippers | [2026-10-28-LAL-at-LAC.md](2026-10-28-LAL-at-LAC.md) (backfilled, as of Oct 28) | [W 103-87](2026-10-28-LAL-at-LAC-postgame.md) |
+| 2026-10-30 | Lakers @ Warriors | [2026-10-30-LAL-at-GSW.md](2026-10-30-LAL-at-GSW.md) (backfilled, as of Oct 30) | [L 95-112](2026-10-30-LAL-at-GSW-postgame.md) |
