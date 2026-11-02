@@ -40,6 +40,7 @@ database rather than a throwaway container.
 | Player seasons | `LeagueDashPlayerStats` Base+Advanced ×2 per season (current + previous) | `PlayerSeasonStats` |
 | Team seasons + standings | `LeagueDashTeamStats` ×4 + `LeagueStandings` ×1 | `TeamSeasonStats`, `Standing` |
 | Lineups | `TeamDashLineups` (focus team) | `LineupStats` |
+| Shot charts | `ShotChartDetail` ×1 (focus team, whole season; replaces each game's shots, keeps only games already in `GameBoxScore`; `--skip-shots`) | `ShotChart` |
 | Injuries (optional) | ESPN site API ×1 | `PlayerInjury` |
 
 The full multi-season backfill (`etl/run_all.py`) is still available but makes hundreds of

@@ -598,6 +598,31 @@ export function shotsFrom(actions: RawLiveAction[]): LiveShot[] {
     }));
 }
 
+export interface ShooterLine {
+  personId: string;
+  player: string;
+  fgm: number;
+  fga: number;
+  fg3m: number;
+  fg3a: number;
+}
+
+/** One line per player who has a charted shot, most attempts first (then most makes, then name). */
+export function shooterLines(shots: LiveShot[]): ShooterLine[] {
+  const by = new Map<string, ShooterLine>();
+  for (const s of shots) {
+    const line = by.get(s.personId) ?? { personId: s.personId, player: s.player, fgm: 0, fga: 0, fg3m: 0, fg3a: 0 };
+    line.fga += 1;
+    if (s.made) line.fgm += 1;
+    if (s.isThree) {
+      line.fg3a += 1;
+      if (s.made) line.fg3m += 1;
+    }
+    by.set(s.personId, line);
+  }
+  return [...by.values()].sort((a, b) => b.fga - a.fga || b.fgm - a.fgm || a.player.localeCompare(b.player));
+}
+
 const QUIET_ACTIONS = new Set(["substitution", "period", "game"]);
 
 export function recentPlays(actions: RawLiveAction[], n = 15): LivePlay[] {

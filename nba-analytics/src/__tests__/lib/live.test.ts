@@ -14,6 +14,7 @@ import {
   recentPlays,
   scoringEvents,
   shotsFrom,
+  shooterLines,
   type RawLiveAction,
   type RawLiveBoxScore,
   type RawLivePlayer,
@@ -243,5 +244,30 @@ describe('buildLiveGame', () => {
     expect(g.focus.lineup).toBeNull()
     expect(g.elapsedSec).toBe(2880)
     expect(g.clock).toBeNull()
+  })
+})
+
+describe('shooterLines', () => {
+  const shot = (personId: string, player: string, made: boolean, isThree = false, id = 0) =>
+    ({ id, tricode: 'LAL', personId, player, made, isThree, x: 0, y: 0, distance: null, period: 1, clock: '', description: '' })
+
+  it('tallies makes and attempts per player, threes separately', () => {
+    const lines = shooterLines([
+      shot('1', 'L. Dončić', true, true), shot('1', 'L. Dončić', false, true), shot('1', 'L. Dončić', true),
+      shot('2', 'S. Mamukelashvili', true, true),
+    ])
+    expect(lines).toEqual([
+      { personId: '1', player: 'L. Dončić', fgm: 2, fga: 3, fg3m: 1, fg3a: 2 },
+      { personId: '2', player: 'S. Mamukelashvili', fgm: 1, fga: 1, fg3m: 1, fg3a: 1 },
+    ])
+  })
+
+  it('orders by attempts, then makes, then name', () => {
+    const lines = shooterLines([shot('3', 'C. Sexton', false), shot('4', 'A. Reaves', true), shot('5', 'J. LaRavia', true)])
+    expect(lines.map((l) => l.player)).toEqual(['A. Reaves', 'J. LaRavia', 'C. Sexton'])
+  })
+
+  it('is empty with no shots', () => {
+    expect(shooterLines([])).toEqual([])
   })
 })

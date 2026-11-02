@@ -15,12 +15,17 @@ def test_build_steps_order_and_flags():
     names = [s[0] for s in steps]
     assert names == [
         'Teams + seasons', 'Rosters', 'Schedule', 'Team games', 'Player games', 'Starters',
-        'Player seasons', 'Team seasons + standings', 'Lineups', 'Injuries',
+        'Player seasons', 'Team seasons + standings', 'Lineups', 'Shot charts', 'Injuries',
     ]
     skipped = {s[0] for s in steps if s[3]}
     assert skipped == {'Schedule', 'Injuries'}
     optional = {s[0] for s in steps if s[2]}
     assert optional == {'Injuries'}
+
+
+def test_build_steps_can_skip_shot_charts():
+    steps = refresh.build_steps('2026-27', '1610612747', skip_shots=True)
+    assert {s[0] for s in steps if s[3]} == {'Shot charts'}
 
 
 def test_run_steps_isolates_failures(capsys):

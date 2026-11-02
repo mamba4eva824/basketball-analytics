@@ -48,7 +48,7 @@ nba-analytics/
 npm run dev -- -p 4000                 # app at http://localhost:4000 (tests expect port 4000)
 npx prisma db push && npx prisma generate
 npx tsx scripts/seed-demo-data.ts      # synthetic data so the UI renders without the ETL
-etl-env/bin/python etl/refresh.py      # daily refresh, current season, league-wide (~45 API calls)
+etl-env/bin/python etl/refresh.py      # daily refresh, current season, league-wide (~46 API calls)
 etl-env/bin/python etl/run_all.py      # full multi-season backfill (slow, hundreds of calls)
 
 npx tsc --noEmit                       # typecheck
