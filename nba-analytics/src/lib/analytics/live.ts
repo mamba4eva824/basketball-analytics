@@ -34,6 +34,8 @@ export interface RawLivePlayer {
   personId: number;
   name: string;
   nameI: string;
+  firstName?: string;
+  familyName?: string;
   jerseyNum?: string;
   position?: string;
   starter: string;
@@ -104,12 +106,30 @@ export interface RawLiveAction {
   clock: string;
   actionType: string;
   subType?: string;
+  /** shot / foul style: "step back", "driving floating", "alley-oop", "shooting", "charge", … */
+  descriptor?: string;
+  /** e.g. "fastbreak", "2ndchance", "heave", "mandatory" */
+  qualifiers?: string[];
   teamTricode?: string;
   personId?: number;
+  playerName?: string;
   playerNameI?: string;
   isFieldGoal?: number;
   shotResult?: string;
   shotDistance?: number;
+  /** the scorer's points so far, after this shot / free throw */
+  pointsTotal?: number;
+  assistPersonId?: number;
+  assistPlayerNameInitial?: string;
+  blockPersonId?: number;
+  blockPlayerName?: string;
+  stealPersonId?: number;
+  stealPlayerName?: string;
+  foulDrawnPersonId?: number;
+  foulDrawnPlayerName?: string;
+  foulPersonalTotal?: number;
+  jumpBallWonPersonId?: number;
+  jumpBallWonPlayerName?: string;
   xLegacy?: number;
   yLegacy?: number;
   description?: string;

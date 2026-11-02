@@ -20,8 +20,11 @@ const HEADERS = {
   Origin: 'https://www.nba.com',
 }
 
-/** The feed itself updates every ~10 s; this keeps several open tabs from multiplying calls. */
-const TTL_MS = 8_000
+/**
+ * Keeps several open tabs from multiplying calls. Short so spoken play-by-play (polled every 4 s)
+ * hears a play within a few seconds of the feed publishing it.
+ */
+const TTL_MS = 3_000
 const cache = new Map<string, { at: number; data: unknown }>()
 
 export class LiveFeedError extends Error {}

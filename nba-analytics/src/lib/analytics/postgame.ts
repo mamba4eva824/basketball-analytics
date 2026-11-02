@@ -40,6 +40,17 @@ export interface Stretch {
   toScore: string;
 }
 
+export interface Run {
+  tricode: string;
+  points: number;
+  /** clock of the run's first and last basket */
+  since: string;
+  until: string;
+  /** focus–opponent score before the run and after it */
+  fromScore: string;
+  toScore: string;
+}
+
 export interface PostgameFacts {
   game: LiveGameData;
   final: boolean;
@@ -48,10 +59,10 @@ export interface PostgameFacts {
   /** focus–opponent score at the end of each period and at 6:00 / 2:00 marks */
   checkpoints: { at: string; score: string }[];
   /** unanswered runs of `minRun`+ points, in game order */
-  runs: { tricode: string; points: number; since: string }[];
+  runs: Run[];
   bestStretch: Record<string, Stretch | null>;
-  /** focus team's go-ahead score it never gave back; null if it never led at the end */
-  leadForGood: { at: string; score: string } | null;
+  /** the winner's go-ahead score it never gave back; null for a tie or no scoring */
+  leadForGood: { tricode: string; at: string; score: string } | null;
   closing: { seconds: number; fromScore: string; focusPoints: number; oppPoints: number; focusScorers: Record<string, number> };
   /** points per period for the focus team's top scorers */
   scorerPeriods: { name: string; byPeriod: number[] }[];
@@ -87,7 +98,8 @@ export function periodSplits(actions: RawLiveAction[], tricodes: string[], perio
     if (a.actionType === "turnover") line.tov++;
     // team rebounds have no personId; the box score's OREB counts players only
     if (a.actionType === "rebound" && a.subType === "offensive" && a.personId) line.oreb++;
-    if (a.actionType === "foul") line.pf++;
+    // technicals (flops, defensive 3 seconds, bench) aren't personal fouls in the box score
+    if (a.actionType === "foul" && a.subType !== "technical") line.pf++;
   }
   return out;
 }
@@ -121,18 +133,24 @@ const scoreLine = (e: Scored | undefined, focusIsHome: boolean) =>
   e ? (focusIsHome ? `${e.home}-${e.away}` : `${e.away}-${e.home}`) : "0-0";
 const focusMargin = (e: Scored, focusIsHome: boolean) => (focusIsHome ? e.home - e.away : e.away - e.home);
 
-export function unansweredRuns(events: Scored[], tricodes: { home: string; away: string }, minRun = 7) {
-  const runs: PostgameFacts["runs"] = [];
-  let side: "home" | "away" | null = null;
-  let points = 0;
-  let since = "";
-  const flush = () => { if (side && points >= minRun) runs.push({ tricode: tricodes[side], points, since }); };
+export function unansweredRuns(events: Scored[], tricodes: { home: string; away: string }, focusIsHome: boolean, minRun = 7): Run[] {
+  const runs: Run[] = [];
+  let run: Scored[] = [];
+  const flush = () => {
+    const points = run.reduce((s, e) => s + e.points, 0);
+    if (!run.length || points < minRun) return;
+    const [first, last] = [run[0], run[run.length - 1]];
+    // the score before the run: undo its first basket (the event carries the score after it)
+    const before = { ...first, [first.side]: first[first.side] - first.points };
+    runs.push({
+      tricode: tricodes[first.side], points, since: first.label, until: last.label,
+      fromScore: scoreLine(before, focusIsHome), toScore: scoreLine(last, focusIsHome),
+    });
+  };
   for (const e of events.filter(isScore)) {
-    if (e.side === side) { points += e.points; continue; }
+    if (run.length && e.side === run[0].side) { run.push(e); continue; }
     flush();
-    side = e.side;
-    points = e.points;
-    since = e.label;
+    run = [e];
   }
   flush();
   return runs;
@@ -154,11 +172,15 @@ export function bestStretch(events: Scored[], forHome: boolean, focusIsHome: boo
   return best;
 }
 
-export function leadForGood(events: Scored[], focusIsHome: boolean): PostgameFacts["leadForGood"] {
-  if (!events.length || focusMargin(events[events.length - 1], focusIsHome) <= 0) return null;
+/** When the winner went ahead for the last time; the score is still from the focus team's view. */
+export function leadForGood(events: Scored[], focusIsHome: boolean, tricodes: { home: string; away: string }): PostgameFacts["leadForGood"] {
+  const end = events[events.length - 1];
+  if (!end || end.home === end.away) return null;
+  const winnerIsFocus = focusMargin(end, focusIsHome) > 0;
+  const winnerMargin = (e: Scored) => (winnerIsFocus ? 1 : -1) * focusMargin(e, focusIsHome);
   let i = events.length - 1;
-  while (i > 0 && focusMargin(events[i - 1], focusIsHome) > 0) i--;
-  return { at: events[i].label, score: scoreLine(events[i], focusIsHome) };
+  while (i > 0 && winnerMargin(events[i - 1]) > 0) i--;
+  return { tricode: tricodes[end.home > end.away ? "home" : "away"], at: events[i].label, score: scoreLine(events[i], focusIsHome) };
 }
 
 export function closingStretch(actions: RawLiveAction[], events: Scored[], opts: { focusTricode: string; focusIsHome: boolean; lastPeriod: number; seconds?: number; regulation?: number }): PostgameFacts["closing"] {
@@ -230,6 +252,11 @@ export function buildPostgame(box: RawLiveBoxScore, actions: RawLiveAction[], fo
     const fromPbp = periods[t.tricode].reduce((s, l) => s + l.pts, 0);
     if (fromPbp !== t.score) checks.push(`${t.tricode}: play-by-play score adds up to ${fromPbp}, final is ${t.score}`);
   }
+  for (const t of [game.focus, game.opponent]) {
+    // a foul rescinded on review can linger in the play-by-play; the box score is authoritative
+    const pf = periods[t.tricode].reduce((s, l) => s + l.pf, 0);
+    if (pf !== t.totals.pf) warnings.push(`${t.tricode}: play-by-play personal fouls add up to ${pf}, box score ${t.totals.pf}; quarter fouls may be off`);
+  }
   for (const s of scorerPeriods) {
     const p = top.find((x) => x.name === s.name)!;
     const sum = s.byPeriod.reduce((a, b) => a + b, 0);
@@ -242,12 +269,12 @@ export function buildPostgame(box: RawLiveBoxScore, actions: RawLiveAction[], fo
     final: box.gameStatus === 3,
     periods,
     checkpoints,
-    runs: unansweredRuns(events, tricodes),
+    runs: unansweredRuns(events, tricodes, focusIsHome),
     bestStretch: {
       [game.focus.tricode]: bestStretch(events, focusIsHome, focusIsHome),
       [game.opponent.tricode]: bestStretch(events, !focusIsHome, focusIsHome),
     },
-    leadForGood: leadForGood(events, focusIsHome),
+    leadForGood: leadForGood(events, focusIsHome, tricodes),
     closing: closingStretch(acts, events, { focusTricode: game.focus.tricode, focusIsHome, lastPeriod: nPeriods, regulation }),
     scorerPeriods,
     checks,
