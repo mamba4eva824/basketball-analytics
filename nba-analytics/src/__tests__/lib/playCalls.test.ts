@@ -62,12 +62,12 @@ describe('made shots', () => {
 
   it('says the distance on deep threes', () => {
     const [call] = playCalls([lal({ actionType: '3pt', subType: 'Jump Shot', shotResult: 'Made', personId: 1, shotDistance: 29.6, scoreHome: '3' })], ctx)
-    expect(call.text).toMatch(/^Reaves, three from 30 feet\.\.\./)
+    expect(call.text).toMatch(/^Wow! Reaves, three from 30 feet\.\.\./)
   })
 
   it('names the passer once on an alley-oop', () => {
     const [call] = playCalls([lal({ actionType: '2pt', subType: 'DUNK', descriptor: 'alley-oop', shotResult: 'Made', personId: 3, assistPersonId: 2, scoreHome: '2' })], ctx)
-    expect(call.text).toMatch(/^Dončić lobs it up\.\.\. Kessler throws it down!/)
+    expect(call.text).toMatch(/^[^.]*! Dončić lobs it up\.\.\. Kessler throws it down!/)
     expect(call.text.match(/Dončić/g)).toHaveLength(1)
   })
 
@@ -138,7 +138,7 @@ describe('free throws', () => {
       lal({ clock: 'PT05M00.00S', actionType: '3pt', subType: 'Jump Shot', shotResult: 'Made', personId: 1, scoreHome: '3' }),
       lal({ clock: 'PT05M00.00S', actionType: 'freethrow', subType: '1 of 1', shotResult: 'Made', personId: 1, scoreHome: '4' }),
     ], ctx)
-    expect(calls[1].text).toMatch(/^Reaves completes the four-point play! Lakers up 4\.$/)
+    expect(calls[1].text).toMatch(/^Are you kidding me\?! Reaves completes the four-point play! Lakers up 4\.$/)
   })
 
   it('treats a missed trip as a highlight, not a score', () => {
@@ -225,7 +225,7 @@ describe('game flow', () => {
       "That's halftime. All tied at 55.",
       "We're headed to overtime, tied at 110!",
       'The overtime is underway.',
-      "That's the final. The Lakers win it, 121 to 117.",
+      "Ball game! That's the final. The Lakers win it, 121 to 117.",
     ])
   })
 
@@ -239,7 +239,7 @@ describe('game flow', () => {
 })
 
 describe('levels', () => {
-  const call = (priority: 1 | 2 | 3, tricodes: string[]): PlayCall => ({ id: 1, order: 1, period: 1, clock: '', tricodes, priority, text: '' })
+  const call = (priority: 1 | 2 | 3, tricodes: string[]): PlayCall => ({ id: 1, order: 1, period: 1, clock: '', tricodes, priority, hype: 0, text: '' })
 
   it('focus keeps every score but only the focus team’s highlights', () => {
     expect(keepCall(call(1, ['GSW']), 'focus', 'LAL')).toBe(true)
@@ -252,7 +252,7 @@ describe('levels', () => {
 })
 
 describe('listening queue', () => {
-  const call = (order: number, priority: 1 | 2 | 3, tricodes = ['LAL']): PlayCall => ({ id: order, order, period: 1, clock: '', tricodes, priority, text: `call ${order}` })
+  const call = (order: number, priority: 1 | 2 | 3, tricodes = ['LAL']): PlayCall => ({ id: order, order, period: 1, clock: '', tricodes, priority, hype: 0, text: `call ${order}` })
 
   it('takes only calls after the last one heard, at the chosen level', () => {
     const calls = [call(1, 1), call(2, 2, ['GSW']), call(3, 2), call(4, 3), call(5, 1, ['GSW'])]
@@ -269,6 +269,52 @@ describe('listening queue', () => {
   it('drops waiting minor calls first, keeping the newest, then the oldest baskets', () => {
     expect(trimQueue([call(1, 2), call(2, 1), call(3, 3), call(4, 1), call(5, 2)]).map((c) => c.order)).toEqual([2, 4, 5])
     expect(trimQueue([1, 2, 3, 4, 5, 6].map((o) => call(o, 1))).map((c) => c.order)).toEqual([3, 4, 5, 6])
+  })
+
+  it('keeps a huge play even when it is only a highlight', () => {
+    const huge = { ...call(1, 2), hype: 2 as const }
+    expect(trimQueue([huge, call(2, 3), call(3, 3), call(4, 2), call(5, 3)]).map((c) => c.order)).toEqual([1, 5])
+  })
+})
+
+describe('big plays', () => {
+  const made = (o: Partial<RawLiveAction>) => ({ actionType: '2pt', subType: 'Jump Shot', shotResult: 'Made', personId: 1, ...o })
+
+  it('leaves routine baskets alone', () => {
+    const [call] = playCalls([lal(made({ scoreHome: '2' }))], ctx)
+    expect(call.hype).toBe(0)
+    expect(call.text).toMatch(/^Reaves, jumper\.\.\. /)
+  })
+
+  it('marks dunks, blocks and steals as big, without an exclamation', () => {
+    const calls = playCalls([
+      lal(made({ subType: 'DUNK', scoreHome: '2' })),
+      gsw({ actionType: '2pt', subType: 'Layup', shotResult: 'Missed', personId: 11, blockPersonId: 3 }),
+      gsw({ actionType: 'turnover', subType: 'bad pass', personId: 11, stealPersonId: 4 }),
+    ], ctx)
+    expect(calls.map((c) => c.hype)).toEqual([1, 1, 1])
+    expect(calls.every((c) => !c.text.match(/^(Oh|Are|Wow|What|Unbelievable)/))).toBe(true)
+  })
+
+  it('opens huge Lakers plays with an exclamation', () => {
+    const [lob] = playCalls([lal(made({ subType: 'DUNK', descriptor: 'alley-oop', personId: 3, assistPersonId: 2, scoreHome: '2' }))], ctx)
+    expect(lob.hype).toBe(2)
+    expect(lob.text).toMatch(/^[^.]*! Dončić lobs it up\.\.\. Kessler throws it down!/)
+  })
+
+  it('calls a clutch go-ahead basket huge', () => {
+    const calls = playCalls([
+      gsw(made({ period: 4, clock: 'PT01M00.00S', personId: 11, scoreAway: '100', scoreHome: '99' })),
+      lal(made({ period: 4, clock: 'PT00M30.00S', actionType: '3pt', shotDistance: 25, scoreHome: '102', scoreAway: '100' })),
+    ], ctx)
+    expect(calls[1].hype).toBe(2)
+    expect(calls[1].text).toMatch(/! 30 seconds left\. Reaves/)
+  })
+
+  it('keeps the other team’s huge plays at big, with no exclamation', () => {
+    const [call] = playCalls([gsw(made({ actionType: '3pt', shotDistance: 31, personId: 11, scoreAway: '3' }))], ctx)
+    expect(call.hype).toBe(1)
+    expect(call.text).toMatch(/^Curry, three from 31 feet/)
   })
 })
 
@@ -301,6 +347,6 @@ describe('a real Lakers game (GSW @ LAL, Oct 21 2026)', () => {
   })
 
   it('ends with the real final score', () => {
-    expect(all.at(-1)?.text).toBe("That's the final. The Lakers win it, 127 to 105.")
+    expect(all.at(-1)?.text).toBe("Ball game! That's the final. The Lakers win it, 127 to 105.")
   })
 })

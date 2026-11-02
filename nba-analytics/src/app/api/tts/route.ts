@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { badRequest, errorResponse, serverError } from '@/app/api/_lib/response'
+import { forSpeech } from '@/lib/analytics/pronunciation'
 
 /**
  * Text → speech through a local Ollama speech model (Phonon by default), for the In-game tab's
@@ -33,7 +34,7 @@ export async function POST(request: Request) {
     res = await fetch(`${OLLAMA_HOST}/v1/audio/speech`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: MODEL, input: parsed.data.text, voice: parsed.data.voice ?? DEFAULT_VOICE }),
+      body: JSON.stringify({ model: MODEL, input: forSpeech(parsed.data.text), voice: parsed.data.voice ?? DEFAULT_VOICE }),
       signal: AbortSignal.timeout(15_000),
     })
   } catch {
