@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { newCalls, trimQueue, type CallLevel, type Hype, type PlayCall } from "@/lib/analytics/playCalls";
+import { keepCall, newCalls, trimQueue, type CallLevel, type Hype, type PlayCall } from "@/lib/analytics/playCalls";
 
 /** big plays come a little quicker — more urgent, same pitch (Phonon itself only speaks at 1×) */
 const HYPE_RATE: Record<Hype, number> = { 0: 1, 1: 1.06, 2: 1.12 };
@@ -147,6 +147,9 @@ export function useSpokenPlays(
       hold.current = false;
       setPaused(false);
       heard.current = null;
+      // a fresh start: Replay must not reach back to a call from before the voice was off
+      lastCall.current = null;
+      setLast(null);
       queue.current = [];
       stopAudio.current?.();
       return;
@@ -156,7 +159,8 @@ export function useSpokenPlays(
       ? newCalls(calls, -1, level, focusTricode).slice(-1)
       : newCalls(calls, heard.current, level, focusTricode);
     heard.current = Math.max(heard.current ?? 0, calls.at(-1)?.order ?? 0);
-    queue.current = trimQueue([...queue.current, ...fresh]);
+    // a narrower level also drops calls already waiting that it no longer keeps
+    queue.current = trimQueue([...queue.current.filter((c) => keepCall(c, level, focusTricode)), ...fresh]);
     void pump();
   }, [calls, enabled, level, focusTricode, pump]);
 

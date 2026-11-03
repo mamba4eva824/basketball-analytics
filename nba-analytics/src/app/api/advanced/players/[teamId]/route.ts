@@ -4,10 +4,11 @@ import { prisma } from '@/app/api/_lib/prisma'
 import { successResponse, notFound, badRequest, serverError } from '@/app/api/_lib/response'
 import { parseSearchParams, seasonSchema } from '@/app/api/_lib/validation'
 import { getSeasonInfo, loadTeamRefs } from '@/app/api/_lib/dashboardData'
-import { CURRENT_SEASON } from '@/lib/constants'
+import { CURRENT_SEASON, previousSeason } from '@/lib/constants'
+import { SMALL_SAMPLE_GAMES } from '@/lib/analytics/projection'
 import { playerTrend, type PlayerGameInput } from '@/lib/analytics/playerTrend'
 import { ROLLING_WINDOW } from '@/lib/analytics/trend'
-import type { AdvancedPlayerLine, AdvancedPlayersData } from '@/lib/dashboard-types'
+import type { AdvancedPlayerBaseline, AdvancedPlayerLine, AdvancedPlayersData } from '@/lib/dashboard-types'
 
 const querySchema = z.object({
   season: seasonSchema.default(CURRENT_SEASON),
@@ -34,7 +35,8 @@ export async function GET(
         where: { teamId },
         select: {
           id: true, fullName: true, position: true, headshotUrl: true,
-          playerSeasonStats: { where: { season } },
+          // unique per (player, team, season): a traded player also has his old team's row
+          playerSeasonStats: { where: { season, teamId } },
         },
       }),
       prisma.playerGameLog.findMany({
@@ -72,6 +74,30 @@ export async function GET(
       }]
     }))
 
+    // data rule 4: small samples get last season's line (any team) as a baseline
+    const prev = previousSeason(season)
+    const smallIds = roster.filter((p) => (p.playerSeasonStats[0]?.gamesPlayed ?? 0) < SMALL_SAMPLE_GAMES).map((p) => p.id)
+    const prevRows = smallIds.length
+      ? await prisma.playerSeasonStats.findMany({
+          where: { season: prev, playerId: { in: smallIds } },
+          select: { playerId: true, teamId: true, gamesPlayed: true, pointsPerGame: true, usageRate: true, trueShootingPct: true, netRating: true },
+        })
+      : []
+    const baselines = new Map<string, AdvancedPlayerBaseline>()
+    for (const r of prevRows) {
+      const have = baselines.get(r.playerId)
+      if (have && have.gamesPlayed >= r.gamesPlayed) continue
+      baselines.set(r.playerId, {
+        season: prev,
+        teamAbbr: teams.get(r.teamId)?.abbreviation ?? null,
+        gamesPlayed: r.gamesPlayed,
+        pointsPerGame: r.pointsPerGame,
+        usageRate: r.usageRate,
+        trueShootingPct: r.trueShootingPct,
+        netRating: r.netRating,
+      })
+    }
+
     const inputs = new Map<string, PlayerGameInput[]>()
     for (const l of logs) {
       const g = games.get(l.gameId)
@@ -108,6 +134,7 @@ export async function GET(
           netRating: s?.netRating ?? null,
           pie: s?.per ?? null,
           plusMinusPerGame: s?.plusMinusPerGame ?? null,
+          previous: baselines.get(p.id) ?? null,
           games: trend.map((g) => ({
             gameId: g.gameId,
             date: g.gameDate.toISOString(),

@@ -105,7 +105,7 @@ def build_steps(season, focus_team_id, skip_schedule=False, skip_injuries=False,
         # one ShotChartDetail call for the whole team season; only games already in GameBoxScore
         # are kept, so this runs after 'Team games'
         import fetch_shots
-        return fetch_shots.fetch_shot_charts([season], [focus_team_id])
+        return fetch_shots.fetch_shot_charts([season], [focus_team_id], raise_errors=True)
 
     def injuries():
         import fetch_injuries

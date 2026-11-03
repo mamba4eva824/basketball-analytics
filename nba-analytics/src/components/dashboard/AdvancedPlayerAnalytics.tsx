@@ -1,19 +1,19 @@
 "use client";
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import Link from "next/link";
 import { format } from "date-fns";
 import { useAdvancedPlayers } from "@/lib/hooks/useAdvancedPlayers";
 import { PLAYER_METRICS } from "@/lib/analytics/playerTrend";
+import { SMALL_SAMPLE_GAMES } from "@/lib/analytics/projection";
 import { PageSkeleton } from "@/components/ui/LoadingSkeleton";
 import { ErrorDisplay } from "@/components/ui/ErrorDisplay";
 import { StatCard } from "@/components/layout/StatCard";
 import { fmtNum, fmtPct, fmtSigned, gameDay } from "@/lib/format";
 import { TrendChart } from "./MetricTrendChart";
 import { PlayerAvatar } from "./PlayerAvatar";
-import { DataNotes, EmptyState, Section, SmallSampleTag } from "./primitives";
-import type { AdvancedPlayerLine, AdvancedPlayersData, PlayerMetric, PlayerTrendPointView } from "@/lib/dashboard-types";
+import { DataNotes, EmptyState, Section, SmallSampleTag, bestTrendGame, trendGameLabel } from "./primitives";
+import type { AdvancedPlayerLine, AdvancedPlayersData, PlayerMetric } from "@/lib/dashboard-types";
 
-const SMALL_SAMPLE_GAMES = 5;
 
 const PLAYER_METRIC_META: Record<PlayerMetric, { label: string; short: string; fmt: "num" | "pct" | "signed"; help: string; lowerBetter?: boolean }> = {
   pts: { label: "Points", short: "PTS", fmt: "num", help: "Points per game" },
@@ -82,7 +82,7 @@ function PlayerTrendSection({ data, player, metric, onMetric }: {
   const games = player.games;
   const last = games[games.length - 1];
   const season = last?.toDate[metric] ?? null;
-  const best = bestGame(games, metric, !!meta.lowerBetter);
+  const best = bestTrendGame(games, metric, !!meta.lowerBetter);
   const small = games.length < SMALL_SAMPLE_GAMES;
   const rows = games.map((g) => ({
     key: g.gameId,
@@ -122,8 +122,8 @@ function PlayerTrendSection({ data, player, metric, onMetric }: {
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
             <StatCard label="Season" value={fmtPlayer(metric, season)} subtitle={`${games.length} game${games.length === 1 ? "" : "s"}`} />
             <StatCard label={`Last ${data.rollingWindow} games`} value={fmtPlayer(metric, last.rolling[metric])} subtitle="Totals over the window" />
-            <StatCard label="Last game" value={fmtPlayer(metric, last.game[metric])} subtitle={gameLabel(last)} />
-            <StatCard label="Best game" value={best ? fmtPlayer(metric, best.game[metric]) : "—"} subtitle={best ? gameLabel(best) : "—"} />
+            <StatCard label="Last game" value={fmtPlayer(metric, last.game[metric])} subtitle={trendGameLabel(last)} />
+            <StatCard label="Best game" value={best ? fmtPlayer(metric, best.game[metric]) : "—"} subtitle={best ? trendGameLabel(best) : "—"} />
           </div>
           <TrendChart
             rows={rows}
@@ -139,21 +139,6 @@ function PlayerTrendSection({ data, player, metric, onMetric }: {
       )}
     </Section>
   );
-}
-
-function gameLabel(g: PlayerTrendPointView): string {
-  return `${g.result} vs ${g.opponentAbbr} · ${format(gameDay(g.date), "MMM d")}`;
-}
-
-function bestGame(games: PlayerTrendPointView[], metric: PlayerMetric, lowerBetter: boolean): PlayerTrendPointView | null {
-  let best: PlayerTrendPointView | null = null;
-  for (const g of games) {
-    const v = g.game[metric];
-    if (v == null) continue;
-    const b = best?.game[metric];
-    if (b == null || (lowerBetter ? v < b : v > b)) best = g;
-  }
-  return best;
 }
 
 const ROSTER_COLUMNS: { key: string; title: string; value: (p: AdvancedPlayerLine) => string }[] = [
@@ -185,8 +170,8 @@ function RosterTable({ players, selected, onSelect }: { players: AdvancedPlayerL
           </thead>
           <tbody>
             {players.map((p) => (
+              <Fragment key={p.playerId}>
               <tr
-                key={p.playerId}
                 onClick={() => onSelect(p.playerId)}
                 aria-selected={p.playerId === selected}
                 className={`border-b border-border-theme/50 cursor-pointer transition-colors ${p.playerId === selected ? "bg-lakers-purple/15" : "hover:bg-input"}`}
@@ -204,6 +189,16 @@ function RosterTable({ players, selected, onSelect }: { players: AdvancedPlayerL
                   <td key={c.key} className="py-1.5 px-1.5 text-right font-mono text-text-secondary">{c.value(p)}</td>
                 ))}
               </tr>
+              {p.gamesPlayed < SMALL_SAMPLE_GAMES && (
+                <tr className="border-b border-border-theme/50">
+                  <td colSpan={ROSTER_COLUMNS.length + 1} className="pb-1.5 pl-8 text-xs text-text-faint whitespace-normal">
+                    {p.previous
+                      ? `Baseline, ${p.previous.season}${p.previous.teamAbbr ? ` (${p.previous.teamAbbr})` : ""}: ${p.previous.gamesPlayed} GP · ${fmtNum(p.previous.pointsPerGame)} PTS · ${fmtPct(p.previous.usageRate)} USG · ${fmtPct(p.previous.trueShootingPct)} TS · ${fmtSigned(p.previous.netRating)} NET`
+                      : "No previous-season NBA line to compare against (rookie or didn't play)."}
+                  </td>
+                </tr>
+              )}
+              </Fragment>
             ))}
           </tbody>
         </table>

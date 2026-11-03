@@ -202,7 +202,7 @@ score after the play). The feed's shorthand `description` is never read aloud.
 - **Hype** (delivery, not a metric): 2 = buzzer-beater, clutch tie/go-ahead (last 2:00 of 4th/OT),
   alley-oop or putback dunk, 28+ ft three or heave, made and-one, run reaching 10+, player reaching
   30+ · 1 = other dunks, blocks, steals, lead changes/ties, run reaching 8, player reaching 20,
-  clutch go-ahead free throws · else 0. Only the focus team reaches 2: those calls open with an
+  clutch go-ahead free throws · else 0. Milestones count the same on a free-throw trip as on a made shot. Only the focus team reaches 2: those calls open with an
   exclamation ("Ball game!" for a focus-team win), the other team's are capped at 1. The voice
   plays hype 1/2 at 1.06×/1.12× the chosen speed, and `trimQueue` keeps hype-2 calls.
 - Wording varies by `actionNumber`, so a replayed play always gets the same sentence.

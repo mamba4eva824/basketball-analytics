@@ -406,7 +406,9 @@ export function playCalls(actions: RawLiveAction[], ctx: CallContext, level: Cal
         const kind = a.descriptor === "technical" ? "technical" : trip.attempts === 1 && andOne ? (lastMade!.points === 3 ? "and-one4" : "and-one3") : "plain";
         const line = freeThrowTrip(trip.made, trip.attempts, s, kind);
         const andOneMade = (kind === "and-one3" || kind === "and-one4") && trip.made > 0;
-        const hype = hypeFor(andOneMade ? 2 : (pointMarkHit(trip.pointsTotal, trip.made) ?? 0) >= 30 || (clutch && leadFlipped(trip.before, state)) ? 1 : 0);
+        // same milestone rules as made shots; a clutch go-ahead trip is big, not huge
+        const mark = pointMarkHit(trip.pointsTotal, trip.made) ?? 0;
+        const hype = hypeFor(andOneMade || mark >= 30 ? 2 : mark > 0 || (clutch && leadFlipped(trip.before, state)) ? 1 : 0);
         if (trip.made > 0) emit(1, [line, scoreNote(ctx, trip.before, state, clutch), pointsNote(s, trip.pointsTotal, trip.made)], actor, true, hype);
         else emit(2, [line]);
         break;

@@ -73,3 +73,19 @@ def test_main_rejects_bad_args():
         refresh.main(['--season', '2026-28'])
     with pytest.raises(SystemExit):
         refresh.main(['--team-focus', 'XXX'])
+
+
+def test_shot_chart_failure_fails_the_step(monkeypatch):
+    import fetch_shots
+
+    def boom(*args, **kwargs):
+        raise RuntimeError('ShotChartDetail timed out')
+
+    monkeypatch.setattr(fetch_shots, 'safe_call', boom)
+    # the backfill logs and moves on; the refresh step must see the failure
+    assert fetch_shots.fetch_shot_charts(['2026-27'], ['1610612747']) == 0
+    with pytest.raises(RuntimeError):
+        fetch_shots.fetch_shot_charts(['2026-27'], ['1610612747'], raise_errors=True)
+    step = next(s for s in refresh.build_steps('2026-27', '1610612747') if s[0] == 'Shot charts')
+    results = refresh.run_steps([step])
+    assert results[0][1] == 'failed'

@@ -383,8 +383,20 @@ export interface AdvancedPlayerLine {
   /** NBA.com Player Impact Estimate (0–1); stored in the legacy `per` column — not PER */
   pie: number | null;
   plusMinusPerGame: number | null;
+  /** previous-season NBA.com line (any team), sent only for small samples — data rule 4 */
+  previous: AdvancedPlayerBaseline | null;
   /** oldest → newest, games played only */
   games: PlayerTrendPointView[];
+}
+
+export interface AdvancedPlayerBaseline {
+  season: string;
+  teamAbbr: string | null;
+  gamesPlayed: number;
+  pointsPerGame: number | null;
+  usageRate: number | null;
+  trueShootingPct: number | null;
+  netRating: number | null;
 }
 
 export interface AdvancedPlayersData {

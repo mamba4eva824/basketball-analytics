@@ -311,6 +311,16 @@ describe('big plays', () => {
     expect(calls[1].text).toMatch(/! 30 seconds left\. Reaves/)
   })
 
+  it('applies the scoring milestones to free throws too', () => {
+    const ft = (pointsTotal: number, scoreHome: string) =>
+      lal({ actionType: 'freethrow', subType: '1 of 1', shotResult: 'Made', personId: 2, pointsTotal, scoreHome })
+    const [twenty] = playCalls([ft(20, '1')], ctx)
+    const [thirty] = playCalls([ft(30, '1')], ctx)
+    expect(twenty.hype).toBe(1)
+    expect(thirty.hype).toBe(2)
+    expect(thirty.text).toMatch(/That's 30 for Dončić\.$/)
+  })
+
   it('keeps the other team’s huge plays at big, with no exclamation', () => {
     const [call] = playCalls([gsw(made({ actionType: '3pt', shotDistance: 31, personId: 11, scoreAway: '3' }))], ctx)
     expect(call.hype).toBe(1)

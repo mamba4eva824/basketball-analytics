@@ -19,7 +19,7 @@ import { PageSkeleton } from "@/components/ui/LoadingSkeleton";
 import { ErrorDisplay } from "@/components/ui/ErrorDisplay";
 import type { TrendMetric, PlayerSeasonStats } from "@/lib/types";
 import { CURRENT_SEASON } from "@/lib/constants";
-import { DASH } from "@/lib/format";
+import { DASH, fmtPct as fmtShare } from "@/lib/format";
 
 function fmtPct(val: number | null | undefined): string {
   if (val === null || val === undefined) return "N/A";
@@ -212,8 +212,10 @@ export function PlayerDashboardClient({ playerId }: { playerId: string }) {
           {/* the `per` column holds NBA.com PIE (a 0–1 share of game events), not Hollinger PER */}
           <StatCard
             label="PIE"
-            value={fmtPct(stats.playerEfficiencyRating)}
-            title="Player Impact Estimate (NBA.com): share of game events this player accounts for. Not PER."
+            value={fmtShare(stats.playerEfficiencyRating)}
+            title={stats.playerEfficiencyRating == null
+              ? "No NBA.com advanced line for this player this season yet"
+              : "Player Impact Estimate (NBA.com): share of game events this player accounts for. Not PER."}
           />
           <StatCard label="TS%" value={fmtPct(stats.trueShootingPct)} />
           <StatCard label="USG%" value={fmtPct(stats.usageRate)} />
