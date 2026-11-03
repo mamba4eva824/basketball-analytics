@@ -37,11 +37,14 @@ def map_shot_result(result_str):
     return 'MISSED'
 
 
-def fetch_shot_charts(seasons=None, team_ids=None):
+def fetch_shot_charts(seasons=None, team_ids=None, raise_errors=False):
     """
     Fetch shot chart data for all players on specified teams.
     Uses ShotChartDetail endpoint which returns all shots for a team in a season.
     Populates the ShotChart table.
+
+    raise_errors: re-raise a team's failure instead of logging and moving on. The backfill keeps
+    going team by team; the daily refresh fetches one team and must report the step as failed.
     """
     if seasons is None:
         seasons = BACKFILL_SEASONS
@@ -157,6 +160,8 @@ def fetch_shot_charts(seasons=None, team_ids=None):
 
             except Exception as e:
                 print(f"    [ERROR] Team {team_id} season {season}: {e}")
+                if raise_errors:
+                    raise
                 continue
 
     print(f"  [OK] Inserted {total_shots} total shot records")

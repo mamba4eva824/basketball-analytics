@@ -1,17 +1,16 @@
 "use client";
 import { useState } from "react";
-import { format } from "date-fns";
 import { useAdvancedTeam } from "@/lib/hooks/useAdvancedTeam";
 import { METRIC_DIRECTION, RANKED_METRICS, STYLE_METRICS } from "@/lib/analytics/ranks";
+import { SMALL_SAMPLE_GAMES } from "@/lib/analytics/projection";
 import { PageSkeleton } from "@/components/ui/LoadingSkeleton";
 import { ErrorDisplay } from "@/components/ui/ErrorDisplay";
 import { StatCard } from "@/components/layout/StatCard";
-import { gameDay, ordinal } from "@/lib/format";
+import { ordinal } from "@/lib/format";
 import { MetricTrendChart } from "./MetricTrendChart";
-import { DataNotes, EmptyState, METRIC_META, RankChip, Section, SmallSampleTag, fmtMetric } from "./primitives";
-import type { AdvancedTeamData, MetricTrendPointView, RankedMetric } from "@/lib/dashboard-types";
+import { DataNotes, EmptyState, METRIC_META, RankChip, Section, SmallSampleTag, bestTrendGame, fmtMetric, trendGameLabel } from "./primitives";
+import type { AdvancedTeamData, RankedMetric } from "@/lib/dashboard-types";
 
-const SMALL_SAMPLE_GAMES = 5;
 
 // Derived from RANKED_METRICS so a newly ranked metric shows up here automatically
 const RATINGS: RankedMetric[] = ["netRtg", "offRtg", "defRtg", "pace"];
@@ -67,7 +66,7 @@ function TrendSection({ data, metric, onMetric, small }: {
   const lowerBetter = !style && METRIC_DIRECTION[metric] === "lower";
   const season = data.seasonMetrics[metric];
   const last = data.games[data.games.length - 1];
-  const best = bestGame(data.games, metric, lowerBetter);
+  const best = bestTrendGame(data.games, metric, lowerBetter);
 
   const picker = (
     <label className="flex flex-col gap-1 text-xs text-text-muted">
@@ -107,27 +106,12 @@ function TrendSection({ data, metric, onMetric, small }: {
           title={`${meta.help} · box-score estimate`}
         />
         <StatCard label={`Last ${data.rollingWindow} games`} value={fmtMetric(metric, last.rolling[metric])} subtitle="Totals over the window" />
-        <StatCard label="Last game" value={fmtMetric(metric, last.game[metric])} subtitle={gameLabel(last)} />
-        <StatCard label={style ? "Highest game" : "Best game"} value={best ? fmtMetric(metric, best.game[metric]) : "—"} subtitle={best ? gameLabel(best) : "—"} />
+        <StatCard label="Last game" value={fmtMetric(metric, last.game[metric])} subtitle={trendGameLabel(last)} />
+        <StatCard label={style ? "Highest game" : "Best game"} value={best ? fmtMetric(metric, best.game[metric]) : "—"} subtitle={best ? trendGameLabel(best) : "—"} />
       </div>
       <MetricTrendChart metric={metric} games={data.games} season={season} rollingWindow={data.rollingWindow} rankedTeams={data.rankedTeams} />
     </Section>
   );
-}
-
-function gameLabel(g: MetricTrendPointView): string {
-  return `${g.result} vs ${g.opponentAbbr} · ${format(gameDay(g.date), "MMM d")}`;
-}
-
-function bestGame(games: MetricTrendPointView[], metric: RankedMetric, lowerBetter: boolean): MetricTrendPointView | null {
-  let best: MetricTrendPointView | null = null;
-  for (const g of games) {
-    const v = g.game[metric];
-    if (v == null) continue;
-    const b = best?.game[metric];
-    if (b == null || (lowerBetter ? v < b : v > b)) best = g;
-  }
-  return best;
 }
 
 function MetricTable({ data, selected, onSelect }: { data: AdvancedTeamData; selected: RankedMetric; onSelect: (m: RankedMetric) => void }) {

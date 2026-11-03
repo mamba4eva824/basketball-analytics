@@ -1,6 +1,7 @@
 "use client";
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from "recharts";
 import { format } from "date-fns";
+import { gameDay } from "@/lib/format";
 import type { TrendPoint } from "@/lib/types";
 import { useThemeColors } from "@/lib/ThemeContext";
 
@@ -13,7 +14,7 @@ interface TrendLineProps {
 export function TrendLine({ data, metricLabel, isPercentage = false }: TrendLineProps) {
   const colors = useThemeColors();
   const chartData = data.map((d) => ({
-    date: format(new Date(d.gameDate), "MMM d"),
+    date: format(gameDay(d.gameDate), "MMM d"),
     matchup: d.matchup ?? "",
     value: isPercentage && d.value !== null ? d.value * 100 : d.value,
     rollingAvg: isPercentage && d.rollingAvg !== null ? d.rollingAvg * 100 : d.rollingAvg,

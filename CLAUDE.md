@@ -8,7 +8,7 @@ reads it through Prisma and renders two primary dashboards in the browser:
 |--------------|-------------------------------------------------------------------------------|
 | `/`          | How are the Lakers and each player on the new roster performing?             |
 | `/matchup`   | Who do we play next, how good are they, and where do we have the edge?       |
-| `/advanced`  | Advanced Team Analytics: any team metric game by game, 5-game average, season rate |
+| `/advanced`  | Advanced analytics, Team / Players tabs: any team or player metric game by game, 5-game average, season rate; NBA.com season advanced lines per player |
 | `/matchup?view=postgame` | Post-game tab: saved post-game (and pre-game) reports from `scouting/`, rendered |
 | `/matchup?view=live` | In-game tab: live score, flow, four factors, box score, shots for today's game |
 
@@ -30,7 +30,7 @@ nba-analytics/
   src/app/api/matchup/…       ← aggregate endpoint for `/matchup`
   src/app/api/live/…          ← today's game from the NBA live feed (proxied; no DB)
   src/app/api/reports/…       ← saved reports read from ../scouting/*.md (local checkout only)
-  src/app/api/advanced/…      ← per-game metric trends for `/advanced`
+  src/app/api/advanced/…      ← per-game team and player metric trends for `/advanced`
   src/app/api/schedule/…      ← focus-team schedule from ScheduledGame (results, rest, B2B)
   src/components/dashboard/   ← dashboard + matchup UI
   scripts/seed-demo-data.ts   ← synthetic data for UI dev / e2e (NOT real stats)
@@ -48,7 +48,7 @@ nba-analytics/
 npm run dev -- -p 4000                 # app at http://localhost:4000 (tests expect port 4000)
 npx prisma db push && npx prisma generate
 npx tsx scripts/seed-demo-data.ts      # synthetic data so the UI renders without the ETL
-etl-env/bin/python etl/refresh.py      # daily refresh, current season, league-wide (~45 API calls)
+etl-env/bin/python etl/refresh.py      # daily refresh, current season, league-wide (~46 API calls)
 etl-env/bin/python etl/run_all.py      # full multi-season backfill (slow, hundreds of calls)
 
 npx tsc --noEmit                       # typecheck

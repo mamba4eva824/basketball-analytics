@@ -19,6 +19,7 @@ import { PageSkeleton } from "@/components/ui/LoadingSkeleton";
 import { ErrorDisplay } from "@/components/ui/ErrorDisplay";
 import type { TrendMetric, PlayerSeasonStats } from "@/lib/types";
 import { CURRENT_SEASON } from "@/lib/constants";
+import { DASH, fmtPct as fmtShare } from "@/lib/format";
 
 function fmtPct(val: number | null | undefined): string {
   if (val === null || val === undefined) return "N/A";
@@ -208,9 +209,13 @@ export function PlayerDashboardClient({ playerId }: { playerId: string }) {
       {/* Advanced Stats Row */}
       {stats && (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-4">
+          {/* the `per` column holds NBA.com PIE (a 0–1 share of game events), not Hollinger PER */}
           <StatCard
-            label="PER"
-            value={stats.playerEfficiencyRating?.toFixed(1) ?? "N/A"}
+            label="PIE"
+            value={fmtShare(stats.playerEfficiencyRating)}
+            title={stats.playerEfficiencyRating == null
+              ? "No NBA.com advanced line for this player this season yet"
+              : "Player Impact Estimate (NBA.com): share of game events this player accounts for. Not PER."}
           />
           <StatCard label="TS%" value={fmtPct(stats.trueShootingPct)} />
           <StatCard label="USG%" value={fmtPct(stats.usageRate)} />
@@ -245,15 +250,18 @@ export function PlayerDashboardClient({ playerId }: { playerId: string }) {
           <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-6">
             <AdvancedStatItem
               label="Win Shares"
-              value={stats.winShares?.toFixed(1) ?? "N/A"}
+              value={stats.winShares?.toFixed(1) ?? DASH}
+              title={stats.winShares == null ? "Not published by NBA.com stats, so not loaded" : undefined}
             />
             <AdvancedStatItem
               label="BPM"
-              value={stats.boxPlusMinus?.toFixed(1) ?? "N/A"}
+              value={stats.boxPlusMinus?.toFixed(1) ?? DASH}
+              title={stats.boxPlusMinus == null ? "Not published by NBA.com stats, so not loaded" : undefined}
             />
             <AdvancedStatItem
               label="VORP"
-              value={stats.valueOverReplacement?.toFixed(1) ?? "N/A"}
+              value={stats.valueOverReplacement?.toFixed(1) ?? DASH}
+              title={stats.valueOverReplacement == null ? "Not published by NBA.com stats, so not loaded" : undefined}
             />
             <AdvancedStatItem
               label="Off Rating"
@@ -339,12 +347,14 @@ export function PlayerDashboardClient({ playerId }: { playerId: string }) {
 function AdvancedStatItem({
   label,
   value,
+  title,
 }: {
   label: string;
   value: string;
+  title?: string;
 }) {
   return (
-    <div className="text-center">
+    <div className="text-center" title={title}>
       <p className="text-xs text-text-muted uppercase tracking-wider mb-1">
         {label}
       </p>

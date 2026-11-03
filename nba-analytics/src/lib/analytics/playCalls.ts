@@ -12,6 +12,14 @@ export type CallLevel = "focus" | "highlights" | "everything";
 /** 1 = always read (scores, period breaks) · 2 = highlights (stops, turnovers, timeouts) · 3 = the rest */
 export type CallPriority = 1 | 2 | 3;
 
+/**
+ * How big the play is, for the voice's delivery: 0 = routine · 1 = big (dunks, blocks, steals,
+ * lead changes) · 2 = huge (lobs, putback slams, deep threes, and-ones, buzzer-beaters, clutch
+ * go-ahead baskets, double-digit runs, 30-point nights). Only the focus team's plays reach 2 —
+ * the announcer is a Lakers voice — and those open with an exclamation.
+ */
+export type Hype = 0 | 1 | 2;
+
 export interface PlayCall {
   /** actionNumber of the play that completes the call (a free-throw trip's last shot) */
   id: number;
@@ -21,6 +29,7 @@ export interface PlayCall {
   /** teams the call is about: the actor's, plus the stealer's / blocker's */
   tricodes: string[];
   priority: CallPriority;
+  hype: Hype;
   text: string;
 }
 
@@ -66,7 +75,7 @@ export function newCalls(calls: PlayCall[], afterOrder: number, level: CallLevel
  */
 export function trimQueue(queue: PlayCall[], max = 4): PlayCall[] {
   if (queue.length <= max) return queue;
-  return queue.filter((c, i) => c.priority === 1 || i === queue.length - 1).slice(-max);
+  return queue.filter((c, i) => c.priority === 1 || c.hype === 2 || i === queue.length - 1).slice(-max);
 }
 
 // ── Score state ──────────────────────────────────────────────────────────────
@@ -129,9 +138,29 @@ function fullScore(ctx: CallContext, s: ScoreState): string {
   return `${team} lead ${hi} to ${lo}.`;
 }
 
+/** The run mark this score first reached, if any. */
+function runMarkHit(before: ScoreState, after: ScoreState): number | null {
+  if (!after.runSide || after.runPoints < RUN_MARKS[0]) return null;
+  const prev = before.runSide === after.runSide ? before.runPoints : 0;
+  return RUN_MARKS.filter((m) => prev < m && after.runPoints >= m).at(-1) ?? null;
+}
+
+/** The points mark a player first reached with this score, if any. */
+function pointMarkHit(pointsTotal: number | undefined, scored: number): number | null {
+  if (pointsTotal == null) return null;
+  const prev = pointsTotal - scored;
+  return POINT_MARKS.filter((m) => prev < m && pointsTotal >= m).at(-1) ?? null;
+}
+
+const leadOf = (s: ScoreState) => Math.sign(s.home - s.away);
+
+/** The lead changed hands or was tied up (the game's first basket doesn't count). */
+const leadFlipped = (before: ScoreState, after: ScoreState) =>
+  before.home + before.away > 0 && leadOf(before) !== leadOf(after);
+
 /** What a basket did to the scoreboard, plus a run or player milestone it reached. */
 function scoreNote(ctx: CallContext, before: ScoreState, after: ScoreState, clutch: boolean): string {
-  const lead = (s: ScoreState) => Math.sign(s.home - s.away);
+  const lead = leadOf;
   let note: string;
   if (after.home === after.away) {
     note = `All tied at ${after.home}.`;
@@ -142,20 +171,33 @@ function scoreNote(ctx: CallContext, before: ScoreState, after: ScoreState, clut
     else if (lead(before) !== lead(after)) note = `${team} take the lead, ${hi} to ${lo}.`;
     else note = clutch ? `${team} lead ${hi} to ${lo}.` : `${team} up ${hi - lo}.`;
   }
-  if (after.runSide && after.runPoints >= RUN_MARKS[0]) {
-    const prev = before.runSide === after.runSide ? before.runPoints : 0;
-    if (RUN_MARKS.some((m) => prev < m && after.runPoints >= m)) {
-      note += ` That's ${after.runPoints} straight points for the ${teamOf(ctx, after.runSide)}.`;
-    }
+  if (after.runSide && runMarkHit(before, after) != null) {
+    note += ` That's ${after.runPoints} straight points for the ${teamOf(ctx, after.runSide)}.`;
   }
   return note;
 }
 
 function pointsNote(name: string, pointsTotal: number | undefined, scored: number): string {
-  if (pointsTotal == null) return "";
-  const prev = pointsTotal - scored;
-  return POINT_MARKS.some((m) => prev < m && pointsTotal >= m) ? `That's ${pointsTotal} for ${name}.` : "";
+  return pointMarkHit(pointsTotal, scored) != null ? `That's ${pointsTotal} for ${name}.` : "";
 }
+
+/** How big a made field goal is, before the focus-team cap. */
+function shotHype(a: RawLiveAction, before: ScoreState, after: ScoreState, clutch: boolean, clockSec: number | null, points: number): Hype {
+  const d = a.descriptor ?? "";
+  const flip = leadFlipped(before, after);
+  const run = runMarkHit(before, after) ?? 0;
+  const mark = pointMarkHit(a.pointsTotal, points) ?? 0;
+  const dunk = a.subType === "DUNK";
+  if (clockSec != null && clockSec <= 0) return 2;
+  if (clutch && flip) return 2;
+  if (dunk && (d.includes("alley-oop") || d.includes("putback"))) return 2;
+  if (a.actionType === "3pt" && ((a.shotDistance ?? 0) >= 28 || a.qualifiers?.includes("heave"))) return 2;
+  if (run >= 10 || mark >= 30) return 2;
+  if (dunk || flip || run > 0 || mark > 0) return 1;
+  return 0;
+}
+
+const SHOUTS = ["Oh my!", "Are you kidding me?!", "Wow!", "What a play!", "Unbelievable!", "Oh, yes!"];
 
 // ── Phrasing ─────────────────────────────────────────────────────────────────
 
@@ -319,13 +361,15 @@ export function playCalls(actions: RawLiveAction[], ctx: CallContext, level: Cal
     const s = who(ctx, a.personId, a.playerName) ?? `the ${team}`;
     const actor = a.teamTricode ? [a.teamTricode] : [ctx.home.tricode, ctx.away.tricode];
 
-    const emit = (priority: CallPriority, parts: string[], tricodes = actor, timed = true) => {
-      const text = [timed && clutch && priority < 3 && clockSec != null ? clockPrefix(clockSec) : "", ...parts]
+    /** big plays by the other team stay at 1: louder for the Lakers than against them */
+    const hypeFor = (h: Hype, tricode = a.teamTricode): Hype => (tricode === ctx.focusTricode ? h : (Math.min(h, 1) as Hype));
+    const emit = (priority: CallPriority, parts: string[], tricodes = actor, timed = true, hype: Hype = 0, shout = pick(SHOUTS, a.actionNumber)) => {
+      const text = [hype === 2 ? shout : "", timed && clutch && priority < 3 && clockSec != null ? clockPrefix(clockSec) : "", ...parts]
         .filter(Boolean)
         .join(" ")
         // a name ending in "Jr." closing a sentence; leaves "..." alone
         .replace(/(?<!\.)\.\.(?!\.)/g, ".");
-      const call: PlayCall = { id: a.actionNumber, order: a.orderNumber, period: a.period, clock: formatClock(clockSec) ?? "", tricodes, priority, text };
+      const call: PlayCall = { id: a.actionNumber, order: a.orderNumber, period: a.period, clock: formatClock(clockSec) ?? "", tricodes, priority, hype, text };
       if (keepCall(call, level, ctx.focusTricode)) out.push(call);
     };
 
@@ -335,11 +379,12 @@ export function playCalls(actions: RawLiveAction[], ctx: CallContext, level: Cal
         if (a.shotResult === "Made") {
           const points = a.actionType === "3pt" ? 3 : 2;
           lastMade = { personId: a.personId ?? 0, period: a.period, clock: a.clock, points };
-          emit(1, [madeShot(ctx, a, s), scoreNote(ctx, before, state, clutch), pointsNote(s, a.pointsTotal, points)]);
+          const hype = hypeFor(shotHype(a, before, state, clutch, clockSec, points));
+          emit(1, [madeShot(ctx, a, s), scoreNote(ctx, before, state, clutch), pointsNote(s, a.pointsTotal, points)], actor, true, hype);
         } else if (a.blockPersonId) {
           const b = who(ctx, a.blockPersonId, a.blockPlayerName) ?? "the defense";
           const line = pick([`${b} blocks ${s}!`, `${b} with the block on ${s}!`, `${s} goes up... rejected by ${b}!`], a.actionNumber);
-          emit(2, [line], [...actor, otherTricode(ctx, a.teamTricode)]);
+          emit(2, [line], [...actor, otherTricode(ctx, a.teamTricode)], true, hypeFor(1, otherTricode(ctx, a.teamTricode)));
         } else {
           emit(3, [missedShot(a, s)]);
         }
@@ -360,14 +405,18 @@ export function playCalls(actions: RawLiveAction[], ctx: CallContext, level: Cal
         const andOne = lastMade && lastMade.personId === a.personId && lastMade.period === a.period && lastMade.clock === a.clock;
         const kind = a.descriptor === "technical" ? "technical" : trip.attempts === 1 && andOne ? (lastMade!.points === 3 ? "and-one4" : "and-one3") : "plain";
         const line = freeThrowTrip(trip.made, trip.attempts, s, kind);
-        if (trip.made > 0) emit(1, [line, scoreNote(ctx, trip.before, state, clutch), pointsNote(s, trip.pointsTotal, trip.made)]);
+        const andOneMade = (kind === "and-one3" || kind === "and-one4") && trip.made > 0;
+        // same milestone rules as made shots; a clutch go-ahead trip is big, not huge
+        const mark = pointMarkHit(trip.pointsTotal, trip.made) ?? 0;
+        const hype = hypeFor(andOneMade || mark >= 30 ? 2 : mark > 0 || (clutch && leadFlipped(trip.before, state)) ? 1 : 0);
+        if (trip.made > 0) emit(1, [line, scoreNote(ctx, trip.before, state, clutch), pointsNote(s, trip.pointsTotal, trip.made)], actor, true, hype);
         else emit(2, [line]);
         break;
       }
       case "turnover": {
         if (a.subType === "offensive foul") break; // called from the foul, which knows if it was a charge
         const stealer = a.stealPersonId ? who(ctx, a.stealPersonId, a.stealPlayerName) : null;
-        emit(2, [turnover(a, s, stealer)], stealer ? [...actor, otherTricode(ctx, a.teamTricode)] : actor);
+        emit(2, [turnover(a, s, stealer)], stealer ? [...actor, otherTricode(ctx, a.teamTricode)] : actor, true, stealer ? hypeFor(1, otherTricode(ctx, a.teamTricode)) : 0);
         break;
       }
       case "foul": {
@@ -451,7 +500,8 @@ export function playCalls(actions: RawLiveAction[], ctx: CallContext, level: Cal
       case "game": {
         if (a.subType !== "end" || state.home === state.away) break;
         const [winner, hi, lo] = leader(ctx, state);
-        emit(1, [`That's the final. The ${winner} win it, ${hi} to ${lo}.`], [ctx.home.tricode, ctx.away.tricode], false);
+        const won = winner === teamName(ctx, ctx.focusTricode);
+        emit(1, [`That's the final. The ${winner} win it, ${hi} to ${lo}.`], [ctx.home.tricode, ctx.away.tricode], false, won ? 2 : 0, "Ball game!");
         break;
       }
       // steal / block are called from the turnover / missed shot they belong to; heave duplicates its 3pt
