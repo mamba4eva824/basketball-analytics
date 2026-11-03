@@ -38,14 +38,14 @@ export function MatchupView() {
 
   return (
     <div className="space-y-6">
-      <div role="tablist" aria-label="Matchup view" className="inline-flex flex-wrap rounded-lg border border-border-theme p-1 gap-1">
+      <div role="tablist" aria-label="Matchup view" className="segmented">
         {VIEWS.map((v) => (
           <button
             key={v.id}
             role="tab"
             aria-selected={view === v.id}
             onClick={() => navigate(v.id)}
-            className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${view === v.id ? "bg-lakers-purple text-white" : "text-text-muted hover:text-text-primary"}`}
+            className="segment inline-flex items-center gap-2 px-4 py-1.5 text-sm"
           >
             {v.label}
             {v.id === "live" && isLive && (

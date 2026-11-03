@@ -18,8 +18,8 @@ const NAV_ITEMS: NavItem[] = [
 const isActive = (pathname: string, href: string) => (href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(`${href}/`));
 
 /**
- * Horizontal navigation in the style of an Apple segmented control: a frosted track with the
- * current page as a filled pill. Centred on wide screens; scrolls sideways on phones.
+ * Horizontal navigation in the style of an Apple segmented control: a grey track with the
+ * current page as a raised pill. Centred on wide screens; scrolls sideways on phones.
  */
 export function TopNav() {
   const pathname = usePathname();
@@ -40,7 +40,7 @@ export function TopNav() {
     <nav aria-label="Main" className="px-4 md:px-6 pb-3">
       <ul
         ref={trackRef}
-        className="[scrollbar-width:none] [&::-webkit-scrollbar]:hidden flex gap-1 w-fit max-w-full mx-auto overflow-x-auto rounded-full p-1 bg-input border border-border-theme shadow-inner"
+        className="[scrollbar-width:none] [&::-webkit-scrollbar]:hidden flex gap-0.5 w-fit max-w-full mx-auto overflow-x-auto rounded-full p-[3px] bg-input"
       >
         {NAV_ITEMS.map((item) => {
           const active = isActive(pathname, item.href);
@@ -50,10 +50,10 @@ export function TopNav() {
                 href={item.href}
                 title={item.title ?? item.label}
                 aria-current={active ? "page" : undefined}
-                className={`flex items-center gap-1.5 h-8 px-3.5 rounded-full text-[13px] font-medium whitespace-nowrap transition-colors duration-200
-                  ${active ? "bg-lakers-purple text-white shadow-sm" : "text-text-secondary hover:text-text-primary hover:bg-black/5 dark:hover:bg-white/10"}`}
+                className={`flex items-center gap-1.5 h-8 px-3.5 rounded-full text-[13px] whitespace-nowrap transition-all duration-200
+                  ${active ? "bg-segment text-text-primary font-semibold shadow-segment" : "font-medium text-text-secondary hover:text-text-primary"}`}
               >
-                <svg className={`w-4 h-4 shrink-0 ${active ? "text-white" : "text-lakers-purple dark:text-lakers-gold"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75} aria-hidden>
+                <svg className={`w-4 h-4 shrink-0 ${active ? "text-lakers-purple dark:text-lakers-gold" : "text-text-muted"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75} aria-hidden>
                   <path strokeLinecap="round" strokeLinejoin="round" d={item.icon} />
                 </svg>
                 {item.label}

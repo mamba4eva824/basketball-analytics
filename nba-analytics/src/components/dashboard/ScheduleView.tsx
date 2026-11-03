@@ -58,14 +58,14 @@ export function ScheduleView() {
           <p className="text-xs uppercase tracking-wider text-text-faint">{data.season.displayName}</p>
           <h1 className="text-3xl font-bold text-heading">Schedule</h1>
         </div>
-        <div role="tablist" aria-label="Schedule view" className="inline-flex rounded-lg border border-border-theme p-1 gap-1">
+        <div role="tablist" aria-label="Schedule view" className="segmented">
           {(["calendar", "list"] as Mode[]).map((m) => (
             <button
               key={m}
               role="tab"
               aria-selected={mode === m}
               onClick={() => setMode(m)}
-              className={`px-4 py-1.5 rounded-md text-sm font-medium capitalize transition-colors ${mode === m ? "bg-lakers-purple text-white" : "text-text-muted hover:text-text-primary"}`}
+              className="segment px-4 py-1.5 text-sm capitalize"
             >
               {m}
             </button>
@@ -91,7 +91,7 @@ function SummaryTiles({ data }: { data: ScheduleData }) {
       <StatCard label="Record" value={`${s.wins}-${s.losses}`} subtitle={`${s.played} played`} />
       <StatCard label="Remaining" value={s.remaining} subtitle={`${s.remainingHome} home · ${s.remainingAway} away`} />
       <StatCard label="Back-to-backs left" value={s.remainingBackToBacks} subtitle="Second night of consecutive days" />
-      <Link href={next ? gameHref(next) : "#"} className="glass-card stat-card p-5 min-w-0 hover:border-lakers-purple/50 transition-colors">
+      <Link href={next ? gameHref(next) : "#"} className="glass-card p-5 min-w-0 hover:border-lakers-purple/50 transition-colors">
         <p className="text-xs uppercase tracking-wider text-text-muted">{next?.state === "today" ? "Today" : "Next game"}</p>
         {next ? (
           <>
@@ -136,7 +136,7 @@ function MonthCalendar({ data }: { data: ScheduleData }) {
     <div className="flex items-center gap-1">
       <NavButton label="Previous month" disabled={idx <= 0} onClick={() => setIdx(idx - 1)}>‹</NavButton>
       {months.includes(todayMonth) && key !== todayMonth && (
-        <button onClick={() => setIdx(months.indexOf(todayMonth))} className="px-2.5 py-1 rounded-md text-xs border border-border-theme text-text-muted hover:text-text-primary">Today</button>
+        <button onClick={() => setIdx(months.indexOf(todayMonth))} className="chip px-2.5 py-1">Today</button>
       )}
       <NavButton label="Next month" disabled={idx >= months.length - 1} onClick={() => setIdx(idx + 1)}>›</NavButton>
     </div>
@@ -256,7 +256,7 @@ function GameList({ data }: { data: ScheduleData }) {
           key={f}
           onClick={() => setFilter(f)}
           aria-pressed={filter === f}
-          className={`px-2.5 py-1 rounded-md text-xs border capitalize transition-colors ${filter === f ? "bg-lakers-purple text-white border-lakers-purple" : "border-border-theme text-text-muted hover:text-text-primary"}`}
+          className="chip px-2.5 py-1 capitalize"
         >
           {f}
         </button>

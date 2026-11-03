@@ -99,16 +99,13 @@ export function GamesPageClient({ teamId }: { teamId: string }) {
       </div>
 
       {/* Filters */}
-      <div className="flex rounded-lg overflow-hidden border border-border-theme w-fit">
+      <div role="group" aria-label="Filter games" className="segmented w-fit">
         {filters.map((f) => (
           <button
             key={f.value}
             onClick={() => setFilter(f.value)}
-            className={`px-4 py-2 text-sm transition-colors ${
-              filter === f.value
-                ? "bg-lakers-purple text-white"
-                : "bg-input text-text-muted hover:text-text-primary"
-            }`}
+            aria-pressed={filter === f.value}
+            className="segment px-4 py-1.5 text-sm"
           >
             {f.label}
             {f.value !== "all" && (

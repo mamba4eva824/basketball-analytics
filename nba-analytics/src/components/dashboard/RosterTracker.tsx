@@ -42,7 +42,7 @@ export function RosterTracker({ roster, season, previous }: { roster: RosterRow[
               key={f}
               onClick={() => setFilter(f)}
               aria-pressed={filter === f}
-              className={`px-2.5 py-1 rounded-md text-xs border transition-colors ${filter === f ? "bg-lakers-purple text-white border-lakers-purple" : "border-border-theme text-text-muted hover:text-text-primary"}`}
+              className="chip px-2.5 py-1"
             >
               {f === "all" ? "All" : f[0].toUpperCase() + f.slice(1)} ({counts[f]})
             </button>
@@ -54,7 +54,7 @@ export function RosterTracker({ roster, season, previous }: { roster: RosterRow[
               key={v}
               onClick={() => setView(v)}
               aria-pressed={view === v}
-              className={`px-2.5 py-1 rounded-md text-xs border transition-colors ${view === v ? "bg-lakers-gold text-black border-lakers-gold" : "border-border-theme text-text-muted hover:text-text-primary"}`}
+              className="chip px-2.5 py-1 aria-pressed:bg-lakers-gold aria-pressed:border-lakers-gold aria-pressed:text-black"
             >
               {v === "season" ? season : `${previous} (any team)`}
             </button>

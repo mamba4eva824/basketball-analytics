@@ -231,7 +231,7 @@ function Toggle<T extends string>({ label, value, onChange, options }: { label: 
             key={v}
             onClick={() => onChange(v)}
             aria-pressed={value === v}
-            className={`px-2.5 py-1.5 rounded-md text-xs border transition-colors ${value === v ? "bg-lakers-purple text-white border-lakers-purple" : "border-border-theme text-text-muted hover:text-text-primary"}`}
+            className="chip px-2.5 py-1.5"
           >
             {text}
           </button>

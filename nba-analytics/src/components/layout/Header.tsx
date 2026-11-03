@@ -25,35 +25,35 @@ export function Header() {
   }, [router]);
 
   return (
-    <header className="sticky top-0 z-20 bg-header backdrop-blur-xl border-b border-border-theme transition-colors duration-300">
+    <header className="sticky top-0 z-20 bg-header backdrop-blur-2xl backdrop-saturate-[1.8] border-b border-border-theme transition-colors duration-300">
       <div className="flex items-center justify-between gap-3 px-4 md:px-6 py-3">
         <Link href="/" className="flex items-center gap-3 min-w-0" title="Lakers Analytics">
           <span className="w-9 h-9 shrink-0 rounded-[10px] bg-gradient-to-br from-lakers-purple to-lakers-gold flex items-center justify-center shadow-sm">
             <span className="text-white font-bold">L</span>
           </span>
           <span className="min-w-0 hidden sm:block">
-            <span className="block text-[15px] font-semibold text-text-primary leading-tight truncate">Lakers Analytics</span>
-            <span className="block text-[11px] text-text-faint truncate">{CURRENT_SEASON} Regular Season</span>
+            <span className="block text-[15px] font-semibold tracking-tight text-text-primary leading-tight truncate">Lakers Analytics</span>
+            <span className="block text-[12px] text-text-muted truncate">{CURRENT_SEASON} Regular Season</span>
           </span>
         </Link>
         <div className="flex items-center gap-3">
           <div className="relative">
-            <div className="flex items-center gap-2 bg-input border border-border-theme rounded-lg px-3 py-2 focus-within:border-lakers-purple/50 transition-colors">
-              <svg className="w-4 h-4 text-text-faint" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <div className="flex items-center gap-2 h-9 bg-input rounded-[10px] px-3 ring-lakers-purple-light/50 focus-within:ring-2 transition-shadow">
+              <svg className="w-4 h-4 shrink-0 text-text-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
               </svg>
-              <input type="text" placeholder="Search Lakers players..." value={searchQuery} onChange={handleSearch}
+              <input type="text" placeholder="Search" value={searchQuery} onChange={handleSearch}
                 onFocus={() => searchQuery.length >= 2 && setShowResults(true)}
                 onBlur={() => setTimeout(() => setShowResults(false), 200)}
-                className="bg-transparent text-sm text-text-primary placeholder-text-faint outline-none w-20 sm:w-40 md:w-64" />
+                className="bg-transparent text-sm text-text-primary placeholder:text-text-muted outline-none w-20 sm:w-40 md:w-64" />
             </div>
             {showResults && searchResults?.data && searchResults.data.length > 0 && (
-              <div className="absolute top-full right-0 mt-2 w-80 max-h-96 overflow-y-auto glass-card border border-border-strong rounded-xl shadow-2xl">
+              <div className="absolute top-full right-0 mt-2 w-80 max-h-96 overflow-y-auto glass-card shadow-2xl">
                 <div className="p-2">
                   {searchResults.data.map((player) => (
                     <button key={player.id} onMouseDown={() => handlePlayerClick(player.id)}
-                      className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-lakers-purple/20 transition-colors text-left">
-                      <div className="w-8 h-8 rounded-full bg-lakers-purple/30 flex items-center justify-center text-xs font-bold text-lakers-gold">
+                      className="w-full flex items-center gap-3 p-2.5 rounded-xl hover:bg-surface-alt transition-colors text-left">
+                      <div className="w-8 h-8 rounded-full bg-lakers-purple flex items-center justify-center text-xs font-semibold text-lakers-gold">
                         {player.position || "?"}
                       </div>
                       <div className="flex-1 min-w-0">
@@ -66,7 +66,7 @@ export function Header() {
               </div>
             )}
             {showResults && searchResults?.data && searchResults.data.length === 0 && searchQuery.length >= 2 && (
-              <div className="absolute top-full right-0 mt-2 w-80 glass-card border border-border-strong rounded-xl shadow-2xl p-4 text-center">
+              <div className="absolute top-full right-0 mt-2 w-80 glass-card shadow-2xl p-4 text-center">
                 <p className="text-sm text-text-muted">No players found</p>
               </div>
             )}

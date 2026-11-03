@@ -31,9 +31,9 @@ export function ShotChart({ shots }: { shots: ShotChartEntry[] }) {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap gap-3 items-center">
-        <div className="flex rounded-lg overflow-hidden border border-border-theme">
+        <div role="group" aria-label="Shot result" className="segmented">
           {(["all","made","missed"] as const).map((f) => (
-            <button key={f} onClick={() => setFilter(f)} className={`px-4 py-1.5 text-sm capitalize transition-colors ${filter === f ? "bg-lakers-purple text-white" : "bg-input text-text-muted hover:text-text-primary"}`}>{f}</button>
+            <button key={f} onClick={() => setFilter(f)} aria-pressed={filter === f} className="segment px-4 py-1.5 text-sm capitalize">{f}</button>
           ))}
         </div>
         <select value={selectedZone} onChange={(e) => setSelectedZone(e.target.value as ShotZone|"all")} className="bg-input border border-border-theme rounded-lg px-3 py-1.5 text-sm text-text-primary outline-none focus:border-lakers-purple/60">
