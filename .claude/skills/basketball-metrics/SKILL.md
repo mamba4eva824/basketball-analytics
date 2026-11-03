@@ -166,6 +166,19 @@ Built from the NBA live feed for one game in progress; nothing is stored.
 - **Game clock → elapsed**: 12-minute regulation periods, 5-minute overtimes.
 - Shot coordinates are `xLegacy`/`yLegacy` (same system as the stats.nba.com shot chart).
 
+## Player trends (`playerTrend.ts`, `/advanced` Players tab)
+
+Game by game, 5-game rolling and season to date, totals first then divide (like the team trend);
+only games with minutes count.
+- **TS%** = PTS ÷ (2 × (FGA + 0.44 × FTA)) · **eFG%** = (FGM + 0.5 × 3PM) ÷ FGA ·
+  **3PA rate** = 3PA ÷ FGA · **FT rate** = FTA ÷ FGA · PTS / MIN / AST / REB / TOV / +/- per game.
+- **USG% (box-score estimate)** = (FGA + 0.44 × FTA + TOV) × (Team MIN ÷ 5) ÷ (MIN × (Team FGA +
+  0.44 × Team FTA + Team TOV)), team totals from the game's box score and Team MIN = the sum of the
+  team's player minutes (so overtime counts). Lands within ~0.5 pt of NBA.com's season USG%.
+- The roster table shows NBA.com's own season advanced line (`PlayerSeasonStats`); its `per`
+  column is PIE and is labelled PIE. Per-game ORtg/DRtg/USG in `PlayerGameLog` are only filled by
+  the full backfill, so the trend never reads them.
+
 ## Spoken play-by-play (`playCalls.ts`)
 
 Sentences for a text-to-speech voice, built only from the play's structured fields (shooter,
@@ -185,6 +198,13 @@ score after the play). The feed's shorthand `description` is never read aloud.
 - **Runs**: unanswered points (a score taken back resets them), announced on first reaching
   8, 10, 12, 15 and 20. **Player milestones**: 20, 30, 40, 50 points.
 - **Names**: family name from the box score; the full name when two players in the game share one.
+  The voice route respells hard names for the TTS model only (`pronunciation.ts`; Dončić → "Don-chich").
+- **Hype** (delivery, not a metric): 2 = buzzer-beater, clutch tie/go-ahead (last 2:00 of 4th/OT),
+  alley-oop or putback dunk, 28+ ft three or heave, made and-one, run reaching 10+, player reaching
+  30+ · 1 = other dunks, blocks, steals, lead changes/ties, run reaching 8, player reaching 20,
+  clutch go-ahead free throws · else 0. Milestones count the same on a free-throw trip as on a made shot. Only the focus team reaches 2: those calls open with an
+  exclamation ("Ball game!" for a focus-team win), the other team's are capped at 1. The voice
+  plays hype 1/2 at 1.06×/1.12× the chosen speed, and `trimQueue` keeps hype-2 calls.
 - Wording varies by `actionNumber`, so a replayed play always gets the same sentence.
 
 ## Post-game facts (`postgame.ts`, `postgame-report` skill)

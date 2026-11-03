@@ -1,6 +1,7 @@
 "use client";
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from "recharts";
 import { format } from "date-fns";
+import { gameDay } from "@/lib/format";
 import type { PlayerGameLog } from "@/lib/types";
 import { useThemeColors } from "@/lib/ThemeContext";
 
@@ -8,7 +9,7 @@ export function ShootingChart({ data }: { data: PlayerGameLog[] }) {
   const colors = useThemeColors();
   const sortedData = [...data].reverse();
   const chartData = sortedData.map((game) => ({
-    date: format(new Date(game.gameDate), "MMM d"),
+    date: format(gameDay(game.gameDate), "MMM d"),
     matchup: game.matchup ?? "",
     fg: game.fieldGoalPct != null ? game.fieldGoalPct * 100 : null,
     three: game.threePointPct != null ? game.threePointPct * 100 : null,

@@ -1,5 +1,6 @@
 "use client";
 import { format } from "date-fns";
+import { gameDay } from "@/lib/format";
 import type { GameBoxScore, PlayerGameLog } from "@/lib/types";
 
 export function TeamGameLogTable({ games, title }: { games: GameBoxScore[]; title?: string }) {
@@ -11,7 +12,7 @@ export function TeamGameLogTable({ games, title }: { games: GameBoxScore[]; titl
       </tr></thead><tbody className="divide-y divide-border-theme">
         {games.map((g) => (
           <tr key={g.id} className="hover:bg-lakers-purple/10 transition-colors">
-            <td className="px-3 py-3 text-sm text-text-secondary">{format(new Date(g.gameDate), "MMM d, yyyy")}</td>
+            <td className="px-3 py-3 text-sm text-text-secondary">{format(gameDay(g.gameDate), "MMM d, yyyy")}</td>
             <td className="px-3 py-3 text-sm text-text-primary"><span className="text-text-faint mr-1">{g.homeAway==="AWAY"?"@":"vs"}</span>{g.opponent?.abbreviation??"OPP"}</td>
             <td className="px-3 py-3"><span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-bold ${g.result==="W"?"bg-green-500/20 text-green-400":"bg-red-500/20 text-red-400"}`}>{g.result}</span></td>
             <td className="px-3 py-3 font-mono text-sm text-text-primary font-medium">{g.points}</td>
@@ -37,7 +38,7 @@ export function PlayerGameLogTable({ games, title }: { games: PlayerGameLog[]; t
       </tr></thead><tbody className="divide-y divide-border-theme">
         {games.map((g) => (
           <tr key={g.id} className="hover:bg-lakers-purple/10 transition-colors">
-            <td className="px-3 py-3 text-sm text-text-secondary whitespace-nowrap">{format(new Date(g.gameDate), "MMM d")}</td>
+            <td className="px-3 py-3 text-sm text-text-secondary whitespace-nowrap">{format(gameDay(g.gameDate), "MMM d")}</td>
             <td className="px-3 py-3 text-sm text-text-primary whitespace-nowrap">{g.matchup??"-"}</td>
             <td className="px-3 py-3"><span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-bold ${g.result==="W"?"bg-green-500/20 text-green-400":"bg-red-500/20 text-red-400"}`}>{g.result}</span></td>
             <td className="px-3 py-3 font-mono text-sm text-text-secondary">{g.minutesStr??g.minutes.toFixed(0)}</td>

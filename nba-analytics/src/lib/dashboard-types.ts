@@ -15,9 +15,10 @@ import type { RosterStatus } from "@/lib/analytics/roster";
 import type { FormSummary, Trend } from "@/lib/analytics/form";
 import type { LiveGameData } from "@/lib/analytics/live";
 import type { PlayCall } from "@/lib/analytics/playCalls";
+import type { PlayerMetric } from "@/lib/analytics/playerTrend";
 import type { ScheduleEntry, ScheduleSummary } from "@/lib/analytics/schedule";
 
-export type { FactorEdge, RankedMetric, RosterStatus, FormSummary, Trend };
+export type { FactorEdge, PlayerMetric, RankedMetric, RosterStatus, FormSummary, Trend };
 export type {
   FoulStatus,
   LiveGameData,
@@ -348,6 +349,62 @@ export interface AdvancedTeamData {
   /** full-season value and rank among teams that have played */
   seasonMetrics: Record<RankedMetric, MetricWithRank>;
   rankedTeams: number;
+}
+
+// ── /api/advanced/players ────────────────────────────────────────────────────
+
+export interface PlayerTrendPointView {
+  gameId: string;
+  date: string;
+  opponentAbbr: string;
+  result: "W" | "L";
+  game: Record<PlayerMetric, number | null>;
+  rolling: Record<PlayerMetric, number | null>;
+  toDate: Record<PlayerMetric, number | null>;
+}
+
+/** NBA.com's season advanced line (LeagueDashPlayerStats), plus the box-score trend. */
+export interface AdvancedPlayerLine {
+  playerId: string;
+  name: string;
+  position: string | null;
+  headshotUrl: string | null;
+  gamesPlayed: number;
+  minutesPerGame: number | null;
+  pointsPerGame: number | null;
+  usageRate: number | null;
+  trueShootingPct: number | null;
+  effectiveFgPct: number | null;
+  assistPct: number | null;
+  reboundPct: number | null;
+  offRating: number | null;
+  defRating: number | null;
+  netRating: number | null;
+  /** NBA.com Player Impact Estimate (0–1); stored in the legacy `per` column — not PER */
+  pie: number | null;
+  plusMinusPerGame: number | null;
+  /** previous-season NBA.com line (any team), sent only for small samples — data rule 4 */
+  previous: AdvancedPlayerBaseline | null;
+  /** oldest → newest, games played only */
+  games: PlayerTrendPointView[];
+}
+
+export interface AdvancedPlayerBaseline {
+  season: string;
+  teamAbbr: string | null;
+  gamesPlayed: number;
+  pointsPerGame: number | null;
+  usageRate: number | null;
+  trueShootingPct: number | null;
+  netRating: number | null;
+}
+
+export interface AdvancedPlayersData {
+  season: SeasonInfo;
+  team: TeamRefLite;
+  rollingWindow: number;
+  /** most minutes per game first */
+  players: AdvancedPlayerLine[];
 }
 
 // ── /api/reports ─────────────────────────────────────────────────────────────

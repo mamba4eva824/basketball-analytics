@@ -1,5 +1,6 @@
 "use client";
 import type { ReactNode } from "react";
+import { format } from "date-fns";
 import { fmtNum, fmtPct, fmtSigned, gameDay, ordinal, rankTone } from "@/lib/format";
 import type { GameResultView, InjuryView, MetricWithRank, RankedMetric, RosterStatus, Trend } from "@/lib/dashboard-types";
 
@@ -107,6 +108,23 @@ export function MetricTile({ metric, value, sub, smallSample }: {
       </p>
     </div>
   );
+}
+
+/** "W vs GSW · Oct 21" for a game in a team or player trend */
+export function trendGameLabel(g: { result: "W" | "L"; opponentAbbr: string; date: string }): string {
+  return `${g.result} vs ${g.opponentAbbr} · ${format(gameDay(g.date), "MMM d")}`;
+}
+
+/** The best single game for a metric in a team or player trend (null values skipped). */
+export function bestTrendGame<M extends string, G extends { game: Record<M, number | null> }>(games: G[], metric: M, lowerBetter: boolean): G | null {
+  let best: G | null = null;
+  for (const g of games) {
+    const v = g.game[metric];
+    if (v == null) continue;
+    const b = best?.game[metric];
+    if (b == null || (lowerBetter ? v < b : v > b)) best = g;
+  }
+  return best;
 }
 
 export function SmallSampleTag({ className = "" }: { className?: string }) {

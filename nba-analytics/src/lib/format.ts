@@ -18,6 +18,11 @@ export function fmtPct(val: number | null | undefined, digits = 1): string {
   return `${(val * 100).toFixed(digits)}%`;
 }
 
+/** Shooting percentage as NBA.com prints it in a box score: "55.6", or "—" with no attempts. */
+export function fmtShotPct(made: number, attempts: number): string {
+  return attempts > 0 ? ((made / attempts) * 100).toFixed(1) : DASH;
+}
+
 export function fmtNum(val: number | null | undefined, digits = 1): string {
   if (val == null || Number.isNaN(val)) return DASH;
   return val.toFixed(digits);

@@ -15,12 +15,17 @@ def test_build_steps_order_and_flags():
     names = [s[0] for s in steps]
     assert names == [
         'Teams + seasons', 'Rosters', 'Schedule', 'Team games', 'Player games', 'Starters',
-        'Player seasons', 'Team seasons + standings', 'Lineups', 'Injuries',
+        'Player seasons', 'Team seasons + standings', 'Lineups', 'Shot charts', 'Injuries',
     ]
     skipped = {s[0] for s in steps if s[3]}
     assert skipped == {'Schedule', 'Injuries'}
     optional = {s[0] for s in steps if s[2]}
     assert optional == {'Injuries'}
+
+
+def test_build_steps_can_skip_shot_charts():
+    steps = refresh.build_steps('2026-27', '1610612747', skip_shots=True)
+    assert {s[0] for s in steps if s[3]} == {'Shot charts'}
 
 
 def test_run_steps_isolates_failures(capsys):
@@ -68,3 +73,19 @@ def test_main_rejects_bad_args():
         refresh.main(['--season', '2026-28'])
     with pytest.raises(SystemExit):
         refresh.main(['--team-focus', 'XXX'])
+
+
+def test_shot_chart_failure_fails_the_step(monkeypatch):
+    import fetch_shots
+
+    def boom(*args, **kwargs):
+        raise RuntimeError('ShotChartDetail timed out')
+
+    monkeypatch.setattr(fetch_shots, 'safe_call', boom)
+    # the backfill logs and moves on; the refresh step must see the failure
+    assert fetch_shots.fetch_shot_charts(['2026-27'], ['1610612747']) == 0
+    with pytest.raises(RuntimeError):
+        fetch_shots.fetch_shot_charts(['2026-27'], ['1610612747'], raise_errors=True)
+    step = next(s for s in refresh.build_steps('2026-27', '1610612747') if s[0] == 'Shot charts')
+    results = refresh.run_steps([step])
+    assert results[0][1] == 'failed'

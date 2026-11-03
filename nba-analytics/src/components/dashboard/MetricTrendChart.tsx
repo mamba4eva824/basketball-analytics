@@ -17,8 +17,6 @@ export function MetricTrendChart({ metric, games, season, rollingWindow, rankedT
   rollingWindow: number;
   rankedTeams: number;
 }) {
-  const c = useThemeColors();
-  const label = METRIC_META[metric].short;
   const rows = games.map((g) => ({
     key: g.gameId,
     label: `${format(gameDay(g.date), "MMM d")} ${g.opponentAbbr}`,
@@ -27,7 +25,36 @@ export function MetricTrendChart({ metric, games, season, rollingWindow, rankedT
     rolling: g.rolling[metric],
   }));
   const seasonLabel = `Season ${fmtMetric(metric, season.value)}${season.rank != null ? ` (${ordinal(season.rank)} of ${rankedTeams})` : ""}`;
+  return (
+    <TrendChart
+      rows={rows}
+      label={METRIC_META[metric].short}
+      fmt={(v) => fmtMetric(metric, v)}
+      season={season.value}
+      seasonLabel={seasonLabel}
+      rollingWindow={rollingWindow}
+    />
+  );
+}
 
+export interface TrendRow {
+  key: string;
+  label: string;
+  result: "W" | "L";
+  game: number | null;
+  rolling: number | null;
+}
+
+/** The chart itself, for any metric: team (MetricTrendChart) or player (Advanced Player Analytics). */
+export function TrendChart({ rows, label, fmt, season, seasonLabel, rollingWindow }: {
+  rows: TrendRow[];
+  label: string;
+  fmt: (v: number | null) => string;
+  season: number | null;
+  seasonLabel: string;
+  rollingWindow: number;
+}) {
+  const c = useThemeColors();
   return (
     <ResponsiveContainer width="100%" height={320}>
       <ComposedChart data={rows} margin={{ top: 16, right: 16, bottom: 0, left: 0 }}>
@@ -39,11 +66,11 @@ export function MetricTrendChart({ metric, games, season, rollingWindow, rankedT
           axisLine={false}
           width={52}
           domain={["auto", "auto"]}
-          tickFormatter={(v: number) => fmtMetric(metric, v)}
+          tickFormatter={(v: number) => fmt(v)}
         />
-        {season.value != null && (
+        {season != null && (
           <ReferenceLine
-            y={season.value}
+            y={season}
             stroke={c.labelText}
             strokeDasharray="6 4"
             ifOverflow="extendDomain"
@@ -52,13 +79,13 @@ export function MetricTrendChart({ metric, games, season, rollingWindow, rankedT
         )}
         <Tooltip
           content={({ active, payload }) => {
-            const p = payload?.[0]?.payload as (typeof rows)[number] | undefined;
+            const p = payload?.[0]?.payload as TrendRow | undefined;
             if (!active || !p) return null;
             return (
               <div style={{ backgroundColor: c.tooltipBg, border: `1px solid ${c.tooltipBorder}`, borderRadius: 8, fontSize: 12, padding: "8px 10px" }}>
                 <p style={{ color: c.tooltipLabel, fontWeight: 600 }}>{p.label} · {p.result}</p>
-                <p style={{ color: c.labelText }}>{label} this game: {fmtMetric(metric, p.game)}</p>
-                <p style={{ color: c.labelText }}>Last {rollingWindow} games: {fmtMetric(metric, p.rolling)}</p>
+                <p style={{ color: c.labelText }}>{label} this game: {fmt(p.game)}</p>
+                <p style={{ color: c.labelText }}>Last {rollingWindow} games: {fmt(p.rolling)}</p>
                 <p style={{ color: c.labelText }}>{seasonLabel}</p>
               </div>
             );

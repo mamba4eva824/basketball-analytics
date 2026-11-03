@@ -4,14 +4,14 @@ import Link from "next/link";
 import { format } from "date-fns";
 import { useLiveGame } from "@/lib/hooks/useLiveGame";
 import { useSpokenPlays, type SpokenPlays } from "@/lib/hooks/useSpokenPlays";
+import type { CallLevel } from "@/lib/analytics/playCalls";
 import { useSchedule } from "@/lib/hooks/useSchedule";
 import { useThemeColors } from "@/lib/ThemeContext";
-import { fmtNum, fmtPct, fmtSigned, gameDay } from "@/lib/format";
-import { periodLabel } from "@/lib/analytics/live";
+import { fmtNum, fmtPct, fmtShotPct, fmtSigned, gameDay } from "@/lib/format";
+import { periodLabel, shooterLines } from "@/lib/analytics/live";
 import { PageSkeleton } from "@/components/ui/LoadingSkeleton";
 import { ErrorDisplay } from "@/components/ui/ErrorDisplay";
 import { TeamLogo } from "@/components/ui/TeamLogo";
-import { StatCard } from "@/components/layout/StatCard";
 import { COURT_H, COURT_W, HalfCourtLines, courtX, courtY } from "@/components/charts/HalfCourt";
 import { GameFlowChart } from "./GameFlowChart";
 import { PlayerAvatar } from "./PlayerAvatar";
@@ -40,17 +40,44 @@ export function LiveGameView({ gameId, onSelectGame }: { gameId?: string; onSele
   );
 }
 
+interface VoiceSettings {
+  level: CallLevel;
+  rate: number;
+  volume: number;
+}
+
 interface VoiceControl extends SpokenPlays {
   on: boolean;
   toggle: () => void;
+  settings: VoiceSettings;
+  setSettings: (patch: Partial<VoiceSettings>) => void;
 }
+
+const VOICE_LEVELS: { value: CallLevel; label: string }[] = [
+  { value: "focus", label: "Lakers focus" },
+  { value: "highlights", label: "Both teams' highlights" },
+  { value: "everything", label: "Every play" },
+];
+const VOICE_RATES = [1, 1.25, 1.5];
+const LEVEL_DESCRIPTIONS: Record<CallLevel, string> = {
+  focus: "every score and quarter break, plus Lakers highlights",
+  highlights: "every score and quarter break, plus both teams' highlights",
+  everything: "every play",
+};
 
 function LiveGameBody({ gameId }: { gameId?: string }) {
   const [voiceOn, setVoiceOn] = useState(false);
+  const [settings, setVoiceSettings] = useState<VoiceSettings>({ level: "focus", rate: 1, volume: 1 });
   const { data, isLoading, error, isFetching, dataUpdatedAt, refetch } = useLiveGame(gameId, { calls: voiceOn });
   const live = data?.kind === "live" ? data : null;
-  const spoken = useSpokenPlays(live?.calls, { enabled: voiceOn, level: "focus", focusTricode: live?.game.focus.tricode ?? "" });
-  const voice: VoiceControl = { ...spoken, on: voiceOn, toggle: () => setVoiceOn((v) => !v) };
+  const spoken = useSpokenPlays(live?.calls, { enabled: voiceOn, focusTricode: live?.game.focus.tricode ?? "", ...settings });
+  const voice: VoiceControl = {
+    ...spoken,
+    on: voiceOn,
+    toggle: () => setVoiceOn((v) => !v),
+    settings,
+    setSettings: (patch) => setVoiceSettings((s) => ({ ...s, ...patch })),
+  };
 
   if (isLoading) return <PageSkeleton />;
   if (error || !data) {
@@ -137,21 +164,111 @@ function PregameTeam({ t }: { t: LivePregameView["focus"] }) {
 
 // ── Live / final ─────────────────────────────────────────────────────────────
 
+const voiceButton = "px-2.5 py-1 rounded-md border border-border-theme text-text-primary hover:border-lakers-purple transition-colors disabled:opacity-40 disabled:hover:border-border-theme";
+
+function VoiceControls({ voice }: { voice: VoiceControl }) {
+  const { settings, setSettings } = voice;
+  return (
+    <div role="group" aria-label="Announcer controls" className="flex flex-wrap items-center gap-x-4 gap-y-2.5 text-xs">
+      <div className="flex flex-wrap items-center gap-1.5">
+        <button
+          onClick={voice.togglePause}
+          aria-pressed={voice.paused}
+          title={voice.paused ? "Resume the voice where it stopped, then catch up" : "Pause the voice mid-call; new plays queue up"}
+          className={voiceButton}
+        >
+          <span aria-hidden>{voice.paused ? "▶" : "❚❚"}</span> {voice.paused ? "Play" : "Pause"}
+        </button>
+        <button onClick={voice.skip} disabled={!voice.speaking} title="Cut this call short and go to the next one" className={voiceButton}>
+          <span aria-hidden>⏭</span> Skip
+        </button>
+        <button onClick={voice.replay} disabled={!voice.last} title={voice.last ? `Say again: “${voice.last}”` : "Nothing said yet"} className={voiceButton}>
+          <span aria-hidden>↺</span> Replay
+        </button>
+      </div>
+      <label className="flex items-center gap-1.5 text-text-muted">
+        Calls
+        <select
+          value={settings.level}
+          onChange={(e) => setSettings({ level: e.target.value as CallLevel })}
+          className="bg-input border border-border-theme rounded-md px-2 py-1 text-text-primary min-w-0"
+        >
+          {VOICE_LEVELS.map((l) => <option key={l.value} value={l.value}>{l.label}</option>)}
+        </select>
+      </label>
+      <div className="flex items-center gap-1 text-text-muted" role="radiogroup" aria-label="Voice speed">
+        Speed
+        {VOICE_RATES.map((r) => (
+          <button
+            key={r}
+            role="radio"
+            aria-checked={settings.rate === r}
+            onClick={() => setSettings({ rate: r })}
+            className={`px-2 py-1 rounded-md border transition-colors ${settings.rate === r ? "bg-lakers-purple text-white border-lakers-purple" : "border-border-theme text-text-muted hover:text-text-primary"}`}
+          >
+            {r}×
+          </button>
+        ))}
+      </div>
+      <label className="flex items-center gap-1.5 text-text-muted">
+        Volume
+        <input
+          type="range"
+          min={0}
+          max={1}
+          step={0.05}
+          value={settings.volume}
+          onChange={(e) => setSettings({ volume: Number(e.target.value) })}
+          aria-valuetext={`${Math.round(settings.volume * 100)}%`}
+          className="w-24 accent-lakers-purple"
+        />
+      </label>
+    </div>
+  );
+}
+
 function VoiceStatus({ voice, live }: { voice: VoiceControl; live: boolean }) {
   let text: ReactNode;
   if (voice.error) text = voice.error;
+  else if (voice.paused) text = <>Paused{voice.speaking && <> mid-call: “{voice.speaking}”</>}{voice.waiting > 0 && ` · ${voice.waiting} waiting`}. Press Play to pick up from there.</>;
   else if (voice.speaking) text = <>Saying: “{voice.speaking}”{voice.waiting > 0 && ` · ${voice.waiting} more waiting`}</>;
-  else if (live) text = "Listening for the next play: every score and quarter break, plus Lakers highlights.";
+  else if (live) text = `Listening for the next play: ${LEVEL_DESCRIPTIONS[voice.settings.level]}.`;
   else text = "This game is over, so there are no new plays to read.";
   return (
-    <p role="status" className={`-mt-2 mb-4 text-xs ${voice.error ? "text-red-500" : "text-text-muted"}`}>
+    <p role="status" className={`text-xs ${voice.error ? "text-red-500" : "text-text-muted"}`}>
       {text}
     </p>
   );
 }
 
+/** The voice: on/off, what it's saying, and its controls. Lives at the top of the live rail. */
+function Announcer({ voice, live }: { voice: VoiceControl; live: boolean }) {
+  return (
+    <Section
+      title="Announcer"
+      subtitle={voice.on ? undefined : "Reads scores, quarter breaks and highlights aloud in a local voice"}
+      action={
+        <button
+          onClick={voice.toggle}
+          aria-pressed={voice.on}
+          title="Reads play-by-play aloud in a local Ollama voice"
+          className={`px-2.5 py-1 rounded-md border text-xs transition-colors ${voice.on ? "bg-lakers-purple text-white border-lakers-purple" : "border-border-theme text-text-muted hover:text-text-primary"}`}
+        >
+          <span aria-hidden>{voice.on ? "🔊" : "🔈"}</span> Read plays aloud
+        </button>
+      }
+    >
+      {voice.on && (
+        <div className="space-y-3">
+          <VoiceStatus voice={voice} live={live} />
+          <VoiceControls voice={voice} />
+        </div>
+      )}
+    </Section>
+  );
+}
+
 function LiveGame({ game, updatedAt, refreshing, voice }: { game: LiveGameData; updatedAt: number; refreshing: boolean; voice: VoiceControl }) {
-  const c = useThemeColors();
   const us = game.focus;
   const them = game.opponent;
   const poss = game.gamePossessions;
@@ -159,74 +276,104 @@ function LiveGame({ game, updatedAt, refreshing, voice }: { game: LiveGameData; 
     `Ratings and four factors are box-score estimates over ${poss != null ? Math.round(poss) : "—"} possessions so far. Single-game numbers swing fast.`,
   ];
 
+  // Main column + live rail (lg+): the rail is placed explicitly beside the first five main rows
+  // and sticks below the header while the page scrolls. Below lg it falls in right after the game flow, so the
+  // live pieces stay near the top of a narrow pane.
+  const main = "lg:col-start-1 min-w-0";
+  const pair = `${main} grid grid-cols-1 md:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 gap-6 items-start`;
   return (
     <div className="space-y-6">
-      <Scoreboard game={game} updatedAt={updatedAt} refreshing={refreshing} voice={voice} />
+      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px] 2xl:grid-cols-[minmax(0,1fr)_400px] gap-6 items-start">
+        <div className={main}>
+          <Scoreboard game={game} updatedAt={updatedAt} refreshing={refreshing} voiceOn={voice.on} />
+        </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <StatCard
-          label={game.status === 3 ? "Closing run" : "Current run"}
-          value={game.run ? `${game.run.tricode} ${game.run.points}–0` : "—"}
-          subtitle={game.run ? `Unanswered since ${game.run.since}` : "No scoring yet"}
-          valueClassName={TILE_VALUE}
-          valueStyle={game.run ? { color: game.run.tricode === us.tricode ? c.us : c.them } : undefined}
-        />
-        <StatCard
-          label="Biggest lead"
-          value={`${us.tricode} ${us.biggestLead} · ${them.tricode} ${them.biggestLead}`}
-          subtitle={`Longest unanswered run: ${us.tricode} ${us.longestRun}, ${them.tricode} ${them.longestRun}`}
-          valueClassName={TILE_VALUE}
-        />
-        <StatCard
-          label="Lead changes · ties"
-          value={`${game.leadChanges} · ${game.timesTied}`}
-          subtitle={`Time leading: ${us.tricode} ${mmss(us.timeLeadingSec)}, ${them.tricode} ${mmss(them.timeLeadingSec)}`}
-          valueClassName={TILE_VALUE}
-        />
-        <StatCard
-          label="Possessions"
-          value={fmtNum(poss)}
-          subtitle={`ORtg ${us.tricode} ${fmtNum(us.factors.offRtg)} · ${them.tricode} ${fmtNum(them.factors.offRtg)}`}
-          valueClassName={TILE_VALUE}
-          title="FGA + 0.44·FTA − OREB + TOV, mean of both teams. ORtg = points per 100 of them."
-        />
-      </div>
+        <MomentumStrip game={game} />
 
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-        <Section title="Game flow" subtitle={`Score margin after every basket (${us.tricode} − ${them.tricode})`}>
+        <Section title="Game flow" subtitle={`Score margin after every basket (${us.tricode} − ${them.tricode})`} className={main}>
           <GameFlowChart data={game.margin} elapsedSec={game.elapsedSec} regulation={game.regulationPeriods} us={us.tricode} them={them.tricode} />
         </Section>
-        <Section title="Four factors, tonight" subtitle="Highlighted side is winning that factor">
-          <FactorTable us={us} them={them} />
-        </Section>
+
+        {/* top clears the sticky site header (~117 px); taller than the screen, the rail scrolls on its own */}
+        <aside aria-label="Live" className="min-w-0 space-y-6 lg:col-start-2 lg:row-start-1 lg:row-span-5 lg:sticky lg:top-[8.5rem] lg:max-h-[calc(100vh-9.5rem)] lg:overflow-y-auto lg:overscroll-contain">
+          <Announcer voice={voice} live={game.status === 2} />
+          <Section title="Play-by-play" subtitle="Latest 15 plays">
+            <PlayFeed game={game} />
+          </Section>
+          <Section title="Watch list" subtitle="Foul trouble, bonus and timeouts">
+            <WatchList game={game} />
+          </Section>
+        </aside>
+
+        <div className={pair}>
+          <Section title="Four factors, tonight" subtitle="Highlighted side is winning that factor">
+            <FactorTable us={us} them={them} />
+          </Section>
+          <Section title="Where the points come from">
+            <ScoringSplit us={us} them={them} />
+          </Section>
+        </div>
+
+        <div className={pair}>
+          <Section title="On the floor" subtitle={game.status === 2 ? "Current five and their stint margin" : "Game over"}>
+            {game.status === 2
+              ? <div className="space-y-5"><OnFloor team={us} /><OnFloor team={them} /></div>
+              : <EmptyState>Final — no one on the floor.</EmptyState>}
+          </Section>
+          <ShotMap shots={game.shots} us={us.tricode} them={them.tricode} />
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-        <Section title="On the floor" subtitle={game.status === 2 ? "Current five and their stint margin" : "Game over"} className="xl:col-span-2">
-          {game.status === 2
-            ? <div className="grid grid-cols-1 md:grid-cols-2 gap-4"><OnFloor team={us} /><OnFloor team={them} /></div>
-            : <EmptyState>Final — no one on the floor.</EmptyState>}
-        </Section>
-        <Section title="Watch list" subtitle="Foul trouble, bonus and timeouts">
-          <WatchList game={game} />
-        </Section>
-      </div>
-
-      <Section title="Where the points come from">
-        <ScoringSplit us={us} them={them} />
-      </Section>
-
-      <BoxScores us={us} them={them} />
-
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-        <ShotMap shots={game.shots} us={us.tricode} them={them.tricode} />
-        <Section title="Play-by-play" subtitle="Latest 15 plays">
-          <PlayFeed game={game} />
-        </Section>
-      </div>
+      <BoxScores us={us} them={them} final={game.status === 3} />
 
       <DataNotes notes={notes} />
     </div>
+  );
+}
+
+/** Run, lead, lead changes and possessions as one compact strip under the scoreboard. */
+function MomentumStrip({ game }: { game: LiveGameData }) {
+  const c = useThemeColors();
+  const us = game.focus;
+  const them = game.opponent;
+  const tiles: { label: string; value: string; subtitle: string; color?: string; title?: string }[] = [
+    {
+      label: game.status === 3 ? "Closing run" : "Current run",
+      value: game.run ? `${game.run.tricode} ${game.run.points}–0` : "—",
+      subtitle: game.run ? `Unanswered since ${game.run.since}` : "No scoring yet",
+      color: game.run ? (game.run.tricode === us.tricode ? c.us : c.them) : undefined,
+    },
+    {
+      label: "Biggest lead",
+      value: `${us.tricode} ${us.biggestLead} · ${them.tricode} ${them.biggestLead}`,
+      subtitle: `Longest unanswered run: ${us.tricode} ${us.longestRun}, ${them.tricode} ${them.longestRun}`,
+    },
+    {
+      label: "Lead changes · ties",
+      value: `${game.leadChanges} · ${game.timesTied}`,
+      subtitle: `Time leading: ${us.tricode} ${mmss(us.timeLeadingSec)}, ${them.tricode} ${mmss(them.timeLeadingSec)}`,
+    },
+    {
+      label: "Possessions",
+      value: fmtNum(game.gamePossessions),
+      subtitle: `ORtg ${us.tricode} ${fmtNum(us.factors.offRtg)} · ${them.tricode} ${fmtNum(them.factors.offRtg)}`,
+      title: "FGA + 0.44·FTA − OREB + TOV, mean of both teams. ORtg = points per 100 of them.",
+    },
+  ];
+  return (
+    <section aria-label="Momentum" className="lg:col-start-1 min-w-0 glass-card grid grid-cols-2 md:grid-cols-4">
+      {tiles.map((t, i) => (
+        <div
+          key={t.label}
+          title={t.title}
+          className={`min-w-0 p-3 md:p-4 ${i % 2 ? "border-l border-border-theme" : ""} ${i >= 2 ? "border-t md:border-t-0 border-border-theme" : ""} ${i === 2 ? "md:border-l" : ""}`}
+        >
+          <p className="text-[11px] uppercase tracking-wider text-text-muted mb-0.5">{t.label}</p>
+          <p className={`${TILE_VALUE} font-bold font-mono text-text-primary break-words`} style={t.color ? { color: t.color } : undefined}>{t.value}</p>
+          <p className="text-xs text-text-faint mt-0.5">{t.subtitle}</p>
+        </div>
+      ))}
+    </section>
   );
 }
 
@@ -245,7 +392,7 @@ function minutesLabel(min: number): string {
 
 // ── Scoreboard ───────────────────────────────────────────────────────────────
 
-function Scoreboard({ game, updatedAt, refreshing, voice }: { game: LiveGameData; updatedAt: number; refreshing: boolean; voice: VoiceControl }) {
+function Scoreboard({ game, updatedAt, refreshing, voiceOn }: { game: LiveGameData; updatedAt: number; refreshing: boolean; voiceOn: boolean }) {
   const away = game.focus.isHome ? game.opponent : game.focus;
   const home = game.focus.isHome ? game.focus : game.opponent;
   const periods = Math.max(game.regulationPeriods, away.periods.length, home.periods.length);
@@ -262,20 +409,11 @@ function Scoreboard({ game, updatedAt, refreshing, voice }: { game: LiveGameData
           <span className="text-text-faint">
             {game.arena && <>{game.arena} · </>}
             Updated {format(new Date(updatedAt), "h:mm:ss a")}
-            {live && ` · refreshes every ${voice.on ? 4 : 15} s`}
+            {live && ` · refreshes every ${voiceOn ? 4 : 15} s`}
             {refreshing && " · refreshing…"}
           </span>
-          <button
-            onClick={voice.toggle}
-            aria-pressed={voice.on}
-            title="Reads every score and quarter break, plus Lakers highlights, in a local Ollama voice"
-            className={`px-2.5 py-1 rounded-md border transition-colors ${voice.on ? "bg-lakers-purple text-white border-lakers-purple" : "border-border-theme text-text-muted hover:text-text-primary"}`}
-          >
-            <span aria-hidden>{voice.on ? "🔊" : "🔈"}</span> Read plays aloud
-          </button>
         </div>
       </div>
-      {voice.on && <VoiceStatus voice={voice} live={live} />}
 
       <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 md:gap-6">
         <ScoreSide team={away} align="left" />
@@ -490,15 +628,74 @@ function ScoringSplit({ us, them }: { us: LiveTeamView; them: LiveTeamView }) {
   );
 }
 
-function BoxScores({ us, them }: { us: LiveTeamView; them: LiveTeamView }) {
+/** NBA.com traditional box score columns, in NBA.com's order. */
+const BOX_COLUMNS: { key: string; title: string }[] = [
+  { key: "MIN", title: "Minutes" },
+  { key: "FGM", title: "Field goals made" }, { key: "FGA", title: "Field goals attempted" }, { key: "FG%", title: "Field goal percentage" },
+  { key: "3PM", title: "Threes made" }, { key: "3PA", title: "Threes attempted" }, { key: "3P%", title: "Three-point percentage" },
+  { key: "FTM", title: "Free throws made" }, { key: "FTA", title: "Free throws attempted" }, { key: "FT%", title: "Free throw percentage" },
+  { key: "OREB", title: "Offensive rebounds" }, { key: "DREB", title: "Defensive rebounds" }, { key: "REB", title: "Rebounds" },
+  { key: "AST", title: "Assists" }, { key: "STL", title: "Steals" }, { key: "BLK", title: "Blocks" },
+  { key: "TO", title: "Turnovers" }, { key: "PF", title: "Personal fouls" }, { key: "PTS", title: "Points" }, { key: "+/-", title: "Plus-minus" },
+];
+
+type BoxLine = Pick<LivePlayerLine, "fgm" | "fga" | "fg3m" | "fg3a" | "ftm" | "fta" | "oreb" | "dreb" | "reb" | "ast" | "stl" | "blk" | "tov" | "pf">;
+
+/** FGM … PF: the stat cells shared by player rows and the team row */
+function BoxCells({ l }: { l: BoxLine }) {
+  return (
+    <>
+      <Num v={l.fgm} /><Num v={l.fga} /><Num v={fmtShotPct(l.fgm, l.fga)} />
+      <Num v={l.fg3m} /><Num v={l.fg3a} /><Num v={fmtShotPct(l.fg3m, l.fg3a)} />
+      <Num v={l.ftm} /><Num v={l.fta} /><Num v={fmtShotPct(l.ftm, l.fta)} />
+      <Num v={l.oreb} /><Num v={l.dreb} /><Num v={l.reb} />
+      <Num v={l.ast} /><Num v={l.stl} /><Num v={l.blk} /><Num v={l.tov} /><Num v={l.pf} />
+    </>
+  );
+}
+
+function BoxPlayerRow({ p }: { p: LivePlayerLine }) {
+  return (
+    <tr className="border-b border-border-theme/50">
+      <td className="py-1.5 pr-2">
+        <span className="flex items-center gap-2">
+          <span className={`text-[10px] ${p.onCourt ? "text-green-500" : "text-transparent"}`} aria-label={p.onCourt ? "on the floor" : undefined}>●</span>
+          <PlayerAvatar name={p.name} headshotUrl={p.headshotUrl} size={24} />
+          <Link href={`/players/${p.personId}`} className="text-text-primary hover:text-heading">{p.name}</Link>
+          {p.starter && p.position && <span className="text-[10px] text-text-faint">{p.position}</span>}
+          <FoulBadge p={p} />
+        </span>
+      </td>
+      <Num v={minutesLabel(p.minutes)} />
+      <BoxCells l={p} />
+      <Num v={p.pts} strong />
+      <Num v={fmtSigned(p.plusMinus, 0)} tone={p.plusMinus > 0 ? "text-green-500" : p.plusMinus < 0 ? "text-red-400" : undefined} />
+    </tr>
+  );
+}
+
+function BoxScores({ us, them, final }: { us: LiveTeamView; them: LiveTeamView; final: boolean }) {
   const [side, setSide] = useState<"us" | "them">("us");
   const team = side === "us" ? us : them;
   const played = team.players.filter((p) => p.played || p.onCourt);
+  const starters = played.filter((p) => p.starter);
+  const bench = played.filter((p) => !p.starter);
   const dnp = team.players.filter((p) => !p.played && !p.onCourt);
+  const cols = BOX_COLUMNS.length + 1;
+  // the feed's team REB and TO count team rebounds / turnovers that no player is credited with
+  const teamReb = team.totals.reb - team.totals.oreb - team.totals.dreb;
+  const teamTov = team.totals.tov - team.players.reduce((n, p) => n + p.tov, 0);
+  const groupRow = (label: string) => (
+    <tr className="border-b border-border-theme">
+      <td colSpan={cols} className="pt-3 pb-1 text-[11px] uppercase tracking-wider text-text-muted">{label}</td>
+    </tr>
+  );
+  // the feed gives no reason for an active player who hasn't checked in; say only what's known
+  const dnpNote = (p: LivePlayerLine) => (p.inactive ? p.inactiveReason ?? "Inactive" : final ? "DNP" : "Has not played");
   return (
     <Section
       title="Box score"
-      subtitle="● = on the floor now"
+      subtitle="NBA.com layout · ● = on the floor now"
       action={
         <div role="group" aria-label="Team" className="flex gap-1">
           {(["us", "them"] as const).map((s) => (
@@ -519,60 +716,43 @@ function BoxScores({ us, them }: { us: LiveTeamView; them: LiveTeamView }) {
           <thead>
             <tr className="text-xs uppercase tracking-wider text-text-muted border-b border-border-theme">
               <th className="text-left py-2 font-medium">Player</th>
-              {["MIN", "PTS", "REB", "AST", "STL", "BLK", "TO", "PF", "FG", "3P", "FT", "TS%", "+/-"].map((h) => (
-                <th key={h} className="text-right py-2 px-1.5 font-medium">{h}</th>
+              {BOX_COLUMNS.map((c) => (
+                <th key={c.key} title={c.title} className="text-right py-2 px-1.5 font-medium">{c.key}</th>
               ))}
             </tr>
           </thead>
           <tbody>
-            {played.map((p) => (
-              <tr key={p.personId} className="border-b border-border-theme/50 last:border-0">
+            {groupRow("Starters")}
+            {starters.map((p) => <BoxPlayerRow key={p.personId} p={p} />)}
+            {(bench.length > 0 || dnp.length > 0) && groupRow("Bench")}
+            {bench.map((p) => <BoxPlayerRow key={p.personId} p={p} />)}
+            {dnp.map((p) => (
+              <tr key={p.personId} className="border-b border-border-theme/50">
                 <td className="py-1.5 pr-2">
                   <span className="flex items-center gap-2">
-                    <span className={`text-[10px] ${p.onCourt ? "text-green-500" : "text-transparent"}`} aria-label={p.onCourt ? "on the floor" : undefined}>●</span>
+                    <span className="text-[10px] text-transparent">●</span>
                     <PlayerAvatar name={p.name} headshotUrl={p.headshotUrl} size={24} />
-                    <Link href={`/players/${p.personId}`} className="text-text-primary hover:text-heading">{p.name}</Link>
-                    {p.starter && <span className="text-[10px] text-text-faint">S</span>}
-                    <FoulBadge p={p} />
+                    <Link href={`/players/${p.personId}`} className="text-text-muted hover:text-heading">{p.name}</Link>
                   </span>
                 </td>
-                <Num v={minutesLabel(p.minutes)} />
-                <Num v={p.pts} strong />
-                <Num v={p.reb} title={`${p.oreb} off / ${p.dreb} def`} />
-                <Num v={p.ast} />
-                <Num v={p.stl} />
-                <Num v={p.blk} />
-                <Num v={p.tov} />
-                <Num v={p.pf} />
-                <Num v={`${p.fgm}-${p.fga}`} />
-                <Num v={`${p.fg3m}-${p.fg3a}`} />
-                <Num v={`${p.ftm}-${p.fta}`} />
-                <Num v={fmtPct(p.tsPct, 0)} />
-                <Num v={fmtSigned(p.plusMinus, 0)} tone={p.plusMinus > 0 ? "text-green-500" : p.plusMinus < 0 ? "text-red-400" : undefined} />
+                <td colSpan={BOX_COLUMNS.length} className="py-1.5 px-1.5 text-xs text-text-faint">{dnpNote(p)}</td>
               </tr>
             ))}
             <tr className="border-t border-border-strong font-semibold">
-              <td className="py-1.5 pr-2 text-text-primary">Team</td>
-              <Num v="" />
+              <td className="py-1.5 pr-2 text-text-primary">Totals</td>
+              <Num v={minutesLabel(played.reduce((m, p) => m + p.minutes, 0))} />
+              <BoxCells l={team.totals} />
               <Num v={team.score} strong />
-              <Num v={team.totals.reb} title={`${team.totals.oreb} off / ${team.totals.dreb} def (player rebounds)`} />
-              <Num v={team.totals.ast} />
-              <Num v={team.totals.stl} />
-              <Num v={team.totals.blk} />
-              <Num v={team.totals.tov} title="Includes team turnovers" />
-              <Num v={team.totals.pf} />
-              <Num v={`${team.totals.fgm}-${team.totals.fga}`} />
-              <Num v={`${team.totals.fg3m}-${team.totals.fg3a}`} />
-              <Num v={`${team.totals.ftm}-${team.totals.fta}`} />
-              <Num v={fmtPct(team.factors.tsPct, 0)} />
               <Num v="" />
             </tr>
           </tbody>
         </table>
       </div>
-      {dnp.length > 0 && (
+      {(teamReb > 0 || teamTov > 0) && (
         <p className="text-xs text-text-faint mt-3">
-          Not played: {dnp.map((p) => (p.inactive && p.inactiveReason ? `${p.name} (${p.inactiveReason})` : p.name)).join(", ")}
+          Totals include{teamReb > 0 && ` ${teamReb} team rebound${teamReb === 1 ? "" : "s"}`}
+          {teamReb > 0 && teamTov > 0 && " and"}
+          {teamTov > 0 && ` ${teamTov} team turnover${teamTov === 1 ? "" : "s"}`} not credited to a player.
         </p>
       )}
     </Section>
@@ -585,20 +765,29 @@ function Num({ v, strong, title, tone }: { v: string | number; strong?: boolean;
 
 // ── Shots & plays ────────────────────────────────────────────────────────────
 
+const shortName = (nameI: string) => nameI.replace(/^[A-Z]\.\s+/, "");
+
 function ShotMap({ shots, us, them }: { shots: LiveShot[]; us: string; them: string }) {
   const [team, setTeam] = useState(us);
-  const mine = shots.filter((s) => s.tricode === team);
+  const [player, setPlayer] = useState<string | null>(null);
+  const teamShots = shots.filter((s) => s.tricode === team);
+  const shooters = shooterLines(teamShots);
+  const picked = shooters.find((l) => l.personId === player) ?? null;
+  const mine = picked ? teamShots.filter((s) => s.personId === picked.personId) : teamShots;
   const made = mine.filter((s) => s.made).length;
+  const threes = mine.filter((s) => s.isThree);
+  const chip = (on: boolean) =>
+    `px-2 py-1 rounded-md text-xs border transition-colors ${on ? "bg-lakers-purple text-white border-lakers-purple" : "border-border-theme text-text-muted hover:text-text-primary"}`;
   return (
     <Section
       title="Shot map"
-      subtitle={`${made}/${mine.length} FG · gold = made, purple = missed`}
+      subtitle={`${picked ? `${shortName(picked.player)}: ` : ""}${made}/${mine.length} FG · ${threes.filter((s) => s.made).length}/${threes.length} 3PT · gold = made, purple = missed`}
       action={
         <div role="group" aria-label="Team" className="flex gap-1">
           {[us, them].map((t) => (
             <button
               key={t}
-              onClick={() => setTeam(t)}
+              onClick={() => { setTeam(t); setPlayer(null); }}
               aria-pressed={team === t}
               className={`px-2.5 py-1 rounded-md text-xs border transition-colors ${team === t ? "bg-lakers-purple text-white border-lakers-purple" : "border-border-theme text-text-muted hover:text-text-primary"}`}
             >
@@ -608,7 +797,23 @@ function ShotMap({ shots, us, them }: { shots: LiveShot[]; us: string; them: str
         </div>
       }
     >
-      <svg viewBox={`0 0 ${COURT_W} ${COURT_H}`} className="w-full max-w-lg mx-auto" role="img" aria-label={`${team} shot locations`}>
+      {shooters.length > 0 && (
+        <div role="group" aria-label="Shooter" className="flex flex-wrap gap-1.5 mb-3">
+          <button onClick={() => setPlayer(null)} aria-pressed={!picked} className={chip(!picked)}>All</button>
+          {shooters.map((l) => (
+            <button
+              key={l.personId}
+              onClick={() => setPlayer(picked?.personId === l.personId ? null : l.personId)}
+              aria-pressed={picked?.personId === l.personId}
+              title={`${l.player}: ${l.fgm}/${l.fga} FG, ${l.fg3m}/${l.fg3a} 3PT`}
+              className={chip(picked?.personId === l.personId)}
+            >
+              {shortName(l.player)} <span className="font-mono opacity-80">{l.fgm}/{l.fga}</span>
+            </button>
+          ))}
+        </div>
+      )}
+      <svg viewBox={`0 0 ${COURT_W} ${COURT_H}`} className="w-full max-w-lg mx-auto" role="img" aria-label={`${picked ? shortName(picked.player) : team} shot locations`}>
         <HalfCourtLines />
         {mine.map((s) => {
           const cx = courtX(s.x);
