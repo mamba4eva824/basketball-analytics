@@ -3,6 +3,7 @@ import { useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from "recharts";
 import { format } from "date-fns";
+import { gameDay } from "@/lib/format";
 import { useTeam, useTeamStats, useTeamGames, useTeamRoster } from "@/lib/hooks/useTeamStats";
 import { useTeamEfficiency } from "@/lib/hooks/useTeamEfficiency";
 import { useThemeColors } from "@/lib/ThemeContext";
@@ -60,7 +61,7 @@ export function TeamDashboardClient({ teamId }: { teamId: string }) {
   const ratingTrendData = useMemo(() => {
     if (!efficiency?.gameEfficiency) return [];
     return efficiency.gameEfficiency.map((g) => ({
-      date: format(new Date(g.gameDate), "MMM d"),
+      date: format(gameDay(g.gameDate), "MMM d"),
       offRtg: g.offRating,
       defRtg: g.defRating,
       netRtg: g.netRating,

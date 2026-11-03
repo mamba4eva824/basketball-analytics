@@ -166,6 +166,19 @@ Built from the NBA live feed for one game in progress; nothing is stored.
 - **Game clock → elapsed**: 12-minute regulation periods, 5-minute overtimes.
 - Shot coordinates are `xLegacy`/`yLegacy` (same system as the stats.nba.com shot chart).
 
+## Player trends (`playerTrend.ts`, `/advanced` Players tab)
+
+Game by game, 5-game rolling and season to date, totals first then divide (like the team trend);
+only games with minutes count.
+- **TS%** = PTS ÷ (2 × (FGA + 0.44 × FTA)) · **eFG%** = (FGM + 0.5 × 3PM) ÷ FGA ·
+  **3PA rate** = 3PA ÷ FGA · **FT rate** = FTA ÷ FGA · PTS / MIN / AST / REB / TOV / +/- per game.
+- **USG% (box-score estimate)** = (FGA + 0.44 × FTA + TOV) × (Team MIN ÷ 5) ÷ (MIN × (Team FGA +
+  0.44 × Team FTA + Team TOV)), team totals from the game's box score and Team MIN = the sum of the
+  team's player minutes (so overtime counts). Lands within ~0.5 pt of NBA.com's season USG%.
+- The roster table shows NBA.com's own season advanced line (`PlayerSeasonStats`); its `per`
+  column is PIE and is labelled PIE. Per-game ORtg/DRtg/USG in `PlayerGameLog` are only filled by
+  the full backfill, so the trend never reads them.
+
 ## Spoken play-by-play (`playCalls.ts`)
 
 Sentences for a text-to-speech voice, built only from the play's structured fields (shooter,

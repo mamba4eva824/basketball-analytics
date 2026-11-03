@@ -8,7 +8,7 @@ reads it through Prisma and renders two primary dashboards in the browser:
 |--------------|-------------------------------------------------------------------------------|
 | `/`          | How are the Lakers and each player on the new roster performing?             |
 | `/matchup`   | Who do we play next, how good are they, and where do we have the edge?       |
-| `/advanced`  | Advanced Team Analytics: any team metric game by game, 5-game average, season rate |
+| `/advanced`  | Advanced analytics, Team / Players tabs: any team or player metric game by game, 5-game average, season rate; NBA.com season advanced lines per player |
 | `/matchup?view=postgame` | Post-game tab: saved post-game (and pre-game) reports from `scouting/`, rendered |
 | `/matchup?view=live` | In-game tab: live score, flow, four factors, box score, shots for today's game |
 
@@ -30,7 +30,7 @@ nba-analytics/
   src/app/api/matchup/…       ← aggregate endpoint for `/matchup`
   src/app/api/live/…          ← today's game from the NBA live feed (proxied; no DB)
   src/app/api/reports/…       ← saved reports read from ../scouting/*.md (local checkout only)
-  src/app/api/advanced/…      ← per-game metric trends for `/advanced`
+  src/app/api/advanced/…      ← per-game team and player metric trends for `/advanced`
   src/app/api/schedule/…      ← focus-team schedule from ScheduledGame (results, rest, B2B)
   src/components/dashboard/   ← dashboard + matchup UI
   scripts/seed-demo-data.ts   ← synthetic data for UI dev / e2e (NOT real stats)

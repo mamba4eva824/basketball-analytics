@@ -1,5 +1,5 @@
-import { AdvancedTeamAnalytics } from "@/components/dashboard/AdvancedTeamAnalytics";
+import { AdvancedAnalytics } from "@/components/dashboard/AdvancedAnalytics";
 
 export default function AdvancedPage() {
-  return <AdvancedTeamAnalytics />;
+  return <AdvancedAnalytics />;
 }
