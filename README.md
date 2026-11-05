@@ -10,6 +10,8 @@ live feed.
 | `/`         | How are the Lakers, and each player on the new roster, performing?                      |
 | `/matchup`  | Who do we play next and where's the edge? What's happening tonight? How did it go?      |
 | `/advanced` | How is any team metric trending game by game, against the season rate?                  |
+| `/progress` | Is the team getting better at what it's working on? Focus areas tracked game by game.  |
+| `/lineups`  | How do players do together? Drag players on/off the floor and compare combinations.    |
 | `/schedule` | When do we play, who's on TV, and where are the back-to-backs?                          |
 
 Other pages: `/standings`, `/roster`, `/games`, `/players/[id]`, `/players/[id]/shots`, `/teams/[id]`.

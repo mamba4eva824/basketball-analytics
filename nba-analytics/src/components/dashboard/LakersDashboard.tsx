@@ -11,6 +11,7 @@ import { RatingTrendChart } from "./RatingTrendChart";
 import { RosterTracker } from "./RosterTracker";
 import { RotationHeatmap } from "./RotationHeatmap";
 import { PlusMinusTracker } from "./PlusMinusTracker";
+import { DashboardFocusScorecard } from "./SeasonProgress";
 import { DataNotes, EmptyState, FormStrip, METRIC_META, MetricTile, RankChip, Section, WindowToggle, fmtMetric, type Window } from "./primitives";
 import type { RankedMetric, TeamDashboardData, TeamProfileView } from "@/lib/dashboard-types";
 
@@ -36,6 +37,7 @@ export function LakersDashboard({ teamId = FOCUS_TEAM_ID }: { teamId?: string })
     <div className="space-y-6">
       <DataNotes notes={data.dataNotes} />
       <TeamHeader data={data} />
+      <DashboardFocusScorecard />
 
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-xl text-heading">Team efficiency</h2>

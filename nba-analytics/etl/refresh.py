@@ -1,5 +1,5 @@
 """
-Daily refresh — current season, all 30 teams, using league-wide endpoints (~46 API calls).
+Daily refresh — current season, all 30 teams, using league-wide endpoints (~56 API calls + ~1 per new focus-team game).
 
 Usage:
     python refresh.py                                   # current season
@@ -53,7 +53,7 @@ def _count(result):
 
 
 def build_steps(season, focus_team_id, skip_schedule=False, skip_injuries=False,
-                skip_starters=False, skip_lineups=False, skip_shots=False):
+                skip_starters=False, skip_lineups=False, skip_shots=False, skip_player_advanced=False):
     """Ordered list of (name, callable, optional, skipped)."""
     prev = previous_season(season)
 
@@ -87,6 +87,11 @@ def build_steps(season, focus_team_id, skip_schedule=False, skip_injuries=False,
         import fetch_league_logs
         return fetch_league_logs.fetch_focus_team_starters(season, focus_team_id)
 
+    def player_advanced():
+        # per-game usage + player ratings (BoxScoreAdvancedV3), ~1 call per new focus-team game
+        import fetch_player_advanced
+        return fetch_player_advanced.fetch_focus_team_player_advanced(season, focus_team_id)
+
     def player_seasons():
         import fetch_players
         return fetch_players.fetch_player_season_stats([season, prev])
@@ -100,6 +105,11 @@ def build_steps(season, focus_team_id, skip_schedule=False, skip_injuries=False,
     def lineups():
         import fetch_advanced
         return fetch_advanced.fetch_lineup_stats([season], [focus_team_id])
+
+    def lineup_groups():
+        # 2-5-man group totals + player on/off for the Lineup Lab (10 calls)
+        import fetch_lineup_groups
+        return fetch_lineup_groups.fetch_lineup_groups(season, focus_team_id)
 
     def shots():
         # one ShotChartDetail call for the whole team season; only games already in GameBoxScore
@@ -118,9 +128,11 @@ def build_steps(season, focus_team_id, skip_schedule=False, skip_injuries=False,
         ('Team games', team_games, False, False),
         ('Player games', player_games, False, False),
         ('Starters', starters, False, skip_starters),
+        ('Player advanced', player_advanced, False, skip_player_advanced),
         ('Player seasons', player_seasons, False, False),
         ('Team seasons + standings', team_seasons_and_standings, False, False),
         ('Lineups', lineups, False, skip_lineups),
+        ('Lineup groups', lineup_groups, False, skip_lineups),
         ('Shot charts', shots, False, skip_shots),
         ('Injuries', injuries, True, skip_injuries),
     ]
@@ -173,8 +185,10 @@ def main(argv=None):
     parser.add_argument('--skip-injuries', action='store_true', help='Skip the ESPN injury report')
     parser.add_argument('--skip-starters', action='store_true',
                         help='Skip BoxScoreTraditionalV3 starter flags for focus-team games')
-    parser.add_argument('--skip-lineups', action='store_true', help='Skip focus-team lineups')
+    parser.add_argument('--skip-lineups', action='store_true', help="Skip focus-team lineups (5-man units and Lineup Lab groups)")
     parser.add_argument('--skip-shots', action='store_true', help='Skip focus-team shot charts')
+    parser.add_argument('--skip-player-advanced', action='store_true',
+                        help='Skip per-game player usage + ratings (BoxScoreAdvancedV3, ~1 call per new game)')
     parser.add_argument('--team-focus', type=str, default='LAL',
                         help='Focus team abbreviation for starters, lineups + shot charts (default: LAL)')
     args = parser.parse_args(argv)
@@ -202,6 +216,7 @@ def main(argv=None):
         skip_starters=args.skip_starters,
         skip_lineups=args.skip_lineups,
         skip_shots=args.skip_shots,
+        skip_player_advanced=args.skip_player_advanced,
     )
     results = run_steps(steps)
     print_summary(results)
