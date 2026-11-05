@@ -7,18 +7,28 @@
  *   T(S on, X off) = Σ over subsets A of X of (−1)^|A| · T(S ∪ A on)
  *
  * e.g. Dončić + Kessler without Reaves = T(Dončić, Kessler) − T(Dončić, Kessler, Reaves).
- * A group missing from NBA.com's list never shared the floor (zero). Ratings and four factors are
- * then the season box-score formulas applied to those minutes. Pure — /api/lineups queries.
+ * A group missing from NBA.com's list never shared the floor (zero) — which only holds if the list
+ * is complete, so `sizeCoverage` checks each size against the team's minutes and rows that
+ * subtract an incomplete size carry a warning. Ratings and four factors are then the season
+ * box-score formulas applied to those minutes. Pure — /api/lineups queries.
  * Spec: basketball-metrics skill → "Lineup Lab".
  */
-import { possessions } from "./teamProfiles";
+import { div, efg, orebPct, possessions, tovPct } from "./teamProfiles";
 
 /** Largest group NBA.com reports, so on + off together can't exceed it. */
 export const MAX_COMBO_PLAYERS = 5;
 /** Under this many minutes together a combination is flagged "small sample". */
 export const SMALL_SAMPLE_MINUTES = 50;
-/** Below this, rounding in NBA.com's minute totals — treat as never on the floor that way. */
-const MIN_MINUTES = 0.05;
+/**
+ * Rounding allowance per term: NBA.com minute totals carry rounding, and a result sums up to 2^|off|
+ * of them. Less than this per term left over = never on the floor that way.
+ */
+const MIN_MINUTES_PER_TERM = 0.05;
+/**
+ * Every minute has exactly five players on the floor, so a complete list of k-man groups adds up
+ * to C(5, k) × the team's minutes. Below this share, that size's list is missing groups.
+ */
+export const MIN_COVERAGE = 0.99;
 
 export interface OppTotals {
   pts: number;
@@ -79,7 +89,7 @@ export interface ComboRow {
   offRtg: number | null;
   defRtg: number | null;
   netRtg: number | null;
-  /** possessions per 48 minutes (lineup data has minutes, unlike game box scores) */
+  /** possessions per 48 minutes (lineup data has minutes, unlike game box scores: "Pace/48") */
   pace: number | null;
   efgPct: number | null;
   tovPct: number | null;
@@ -95,6 +105,8 @@ export interface ComboRow {
   smallSample: boolean;
   /** why this row is empty: data not loaded, or never on the floor that way */
   error: string | null;
+  /** set when the row subtracts a group size whose NBA.com list looks incomplete: numbers are approximate */
+  warning: string | null;
 }
 
 export const groupKey = (ids: Iterable<string>): string => [...ids].sort().join("-");
@@ -107,6 +119,22 @@ const SIZE_NAMES: Record<number, string> = {
   4: "4-man groups",
   5: "5-man lineups",
 };
+
+const choose = (n: number, k: number): number => (k < 0 || k > n ? 0 : k === 0 ? 1 : (choose(n - 1, k - 1) * n) / k);
+
+/**
+ * Share of the expected minutes each loaded size's groups account for: Σ minutes of k-man groups
+ * ÷ (C(5, k) × team minutes). 1 = complete. Sizes are left out when team minutes aren't loaded.
+ */
+export function sizeCoverage(minutesBySize: ReadonlyMap<number, number>): Map<number, number> {
+  const team = minutesBySize.get(0);
+  const out = new Map<number, number>();
+  if (!team || team <= 0) return out;
+  for (const [size, total] of minutesBySize) {
+    if (size >= 1 && size <= MAX_COMBO_PLAYERS) out.set(size, total / (choose(MAX_COMBO_PLAYERS, size) * team));
+  }
+  return out;
+}
 
 /** Every subset of `xs` (2^n of them; n ≤ 5 here). */
 function subsets<T>(xs: T[]): T[][] {
@@ -146,14 +174,19 @@ export function comboTotals(
   on: string[],
   off: string[],
   sizes: ReadonlySet<number>,
-): { totals: GroupTotals | null; error: string | null } {
+  coverage: ReadonlyMap<number, number> = new Map(),
+): { totals: GroupTotals | null; error: string | null; warning: string | null } {
   const invalid = validateSelection(on, off);
-  if (invalid) return { totals: null, error: invalid };
+  if (invalid) return { totals: null, error: invalid, warning: null };
 
+  const terms = subsets(off);
   const sum: GroupTotals = { ...ZERO, opp: { ...ZERO.opp! } };
-  for (const a of subsets(off)) {
+  const thin = new Set<number>();
+  for (const a of terms) {
     const size = on.length + a.length;
-    if (!sizes.has(size)) return { totals: null, error: `NBA.com ${SIZE_NAMES[size]} aren't loaded for this season yet — run the ETL refresh.` };
+    if (!sizes.has(size)) return { totals: null, error: `NBA.com ${SIZE_NAMES[size]} aren't loaded for this season yet — run the ETL refresh.`, warning: null };
+    // a group missing from an incomplete list isn't really zero; only matters when we subtract
+    if (off.length && size >= 1 && (coverage.get(size) ?? 1) < MIN_COVERAGE) thin.add(size);
     const g = lookup(groupKey([...on, ...a])) ?? ZERO;
     const sign = a.length % 2 === 0 ? 1 : -1;
     for (const k of NUM_KEYS) sum[k] += sign * g[k];
@@ -161,11 +194,14 @@ export function comboTotals(
     else sum.opp = null;
   }
   sum.gamesPlayed = off.length === 0 ? (lookup(groupKey(on))?.gamesPlayed ?? 0) : 0;
-  if (sum.minutes < MIN_MINUTES) return { totals: null, error: "Never on the floor in this combination this season." };
-  return { totals: sum, error: null };
+  if (sum.minutes < MIN_MINUTES_PER_TERM * terms.length) {
+    return { totals: null, error: "Never on the floor in this combination this season.", warning: null };
+  }
+  const warning = thin.size
+    ? `Approximate: NBA.com's ${[...thin].sort().map((s) => SIZE_NAMES[s]).join(" and ")} cover only ${[...thin].sort().map((s) => `${Math.round(100 * coverage.get(s)!)}%`).join(" / ")} of the minutes they should, so the subtraction may miss some.`
+    : null;
+  return { totals: sum, error: null, warning };
 }
-
-const div = (a: number, b: number): number | null => (b > 0 ? a / b : null);
 
 /** Ratings and four factors for a set of totals (same formulas as the team profiles). */
 export function comboMetrics(t: GroupTotals) {
@@ -187,16 +223,16 @@ export function comboMetrics(t: GroupTotals) {
     defRtg,
     netRtg: offRtg != null && defRtg != null ? offRtg - defRtg : null,
     pace: ok && t.minutes >= 1 ? (poss! * 48) / t.minutes : null,
-    efgPct: div(t.fgm + 0.5 * t.fg3m, t.fga),
-    tovPct: div(t.tov, t.fga + 0.44 * t.fta + t.tov),
-    orebPct: opp ? div(t.oreb, t.oreb + opp.dreb) : null,
+    efgPct: efg(t),
+    tovPct: tovPct(t),
+    orebPct: opp ? orebPct(t, opp) : null,
     ftRate: div(t.fta, t.fga),
     threePaRate: div(t.fg3a, t.fga),
     threePct: div(t.fg3m, t.fg3a),
     astPct: div(t.ast, t.fgm),
-    oppEfgPct: opp ? div(opp.fgm + 0.5 * opp.fg3m, opp.fga) : null,
-    oppTovPct: opp ? div(opp.tov, opp.fga + 0.44 * opp.fta + opp.tov) : null,
-    oppOrebPct: opp ? div(opp.oreb, opp.oreb + t.dreb) : null,
+    oppEfgPct: opp ? efg(opp) : null,
+    oppTovPct: opp ? tovPct(opp) : null,
+    oppOrebPct: opp ? orebPct(opp, t) : null,
     oppFtRate: opp ? div(opp.fta, opp.fga) : null,
   };
 }
@@ -217,16 +253,18 @@ export function comboRow(
   kind: ComboKind,
   label: string,
   removed: string | null = null,
+  coverage?: ReadonlyMap<number, number>,
 ): ComboRow {
-  const { totals, error } = comboTotals(lookup, on, off, sizes);
+  const { totals, error, warning } = comboTotals(lookup, on, off, sizes, coverage);
   const base = { id: rowId(on, off), kind, on: [...on], off: [...off], removed, label };
-  if (!totals) return { ...base, ...EMPTY_METRICS, gamesPlayed: null, smallSample: false, error };
+  if (!totals) return { ...base, ...EMPTY_METRICS, gamesPlayed: null, smallSample: false, error, warning: null };
   return {
     ...base,
     ...comboMetrics(totals),
     gamesPlayed: off.length === 0 ? totals.gamesPlayed : null,
     smallSample: totals.minutes < SMALL_SAMPLE_MINUTES,
     error: null,
+    warning,
   };
 }
 
@@ -273,8 +311,9 @@ export function comparisonRows(
   sizes: ReadonlySet<number>,
   name: (id: string) => string,
   teamName?: string,
+  coverage?: ReadonlyMap<number, number>,
 ): ComboRow[] {
-  return comparisonPlan(on, off).map((p) => comboRow(lookup, p.on, p.off, sizes, p.kind, comboLabel(p.on, p.off, name, teamName), p.removed));
+  return comparisonPlan(on, off).map((p) => comboRow(lookup, p.on, p.off, sizes, p.kind, comboLabel(p.on, p.off, name, teamName), p.removed, coverage));
 }
 
 // ── Building group totals from stints (demo seed + tests) ────────────────────

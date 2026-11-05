@@ -5,7 +5,7 @@ import {
   DndContext,
   DragOverlay,
   KeyboardSensor,
-  PointerSensor,
+  MouseSensor,
   TouchSensor,
   useDraggable,
   useDroppable,
@@ -26,6 +26,23 @@ import type { LineupPoolPlayer } from "@/lib/dashboard-types";
 type Zone = "on" | "off" | "pool";
 
 const parseIds = (v: string | null) => (v ? v.split(",").filter((x) => /^\d+$/.test(x)) : []);
+const selectionKey = (on: string[], off: string[]) => `${on.join(",")}|${off.join(",")}`;
+
+interface Selection {
+  on: string[];
+  off: string[];
+  /** selectionKey(on, off) */
+  key: string;
+  /** keys written to the URL that the router may not have shown yet */
+  pending: string[];
+}
+
+function fromUrl(params: URLSearchParams, key: string): Selection {
+  const on = parseIds(params.get("on"));
+  const off = parseIds(params.get("off")).filter((id) => !on.includes(id));
+  // the key is of the raw URL lists, so an "off" id also listed "on" doesn't cause a re-sync loop
+  return { on, off, key, pending: [] };
+}
 
 /**
  * /lineups — Lineup Lab. Drag players onto "On the floor" (and optionally "Off the floor") to see
@@ -37,16 +54,18 @@ export function LineupLab() {
   const router = useRouter();
   const pathname = usePathname();
   // State is the source of truth (taps in quick succession must build on each other); the URL
-  // mirrors it so a comparison can be shared. router.replace is async, so it can't be read back.
-  const [selection, setSel] = useState(() => {
-    const on = parseIds(params.get("on"));
-    return { on, off: parseIds(params.get("off")).filter((id) => !on.includes(id)) };
-  });
-  const { on, off } = selection;
+  // mirrors it so a comparison can be shared. router.replace is async, so URLs we wrote but the
+  // router hasn't shown yet are "pending"; any other URL change (nav pill, pasted link) wins.
+  const urlKey = selectionKey(parseIds(params.get("on")), parseIds(params.get("off")));
+  const [sel, setSel] = useState(() => fromUrl(params, urlKey));
+  if (urlKey === sel.key && sel.pending.length) setSel({ ...sel, pending: [] }); // router caught up
+  else if (urlKey !== sel.key && !sel.pending.includes(urlKey)) setSel(fromUrl(params, urlKey)); // navigated
+  const { on, off } = sel;
   const q = useLineupLab(on, off);
 
   const setSelection = (nextOn: string[], nextOff: string[]) => {
-    setSel({ on: nextOn, off: nextOff });
+    const key = selectionKey(nextOn, nextOff);
+    setSel({ on: nextOn, off: nextOff, key, pending: [...sel.pending, key] });
     const sp = new URLSearchParams(params);
     if (nextOn.length) sp.set("on", nextOn.join(","));
     else sp.delete("on");
@@ -91,9 +110,11 @@ function LabBody({ data, on, off, refreshing, onChange }: {
 }) {
   const [showFormer, setShowFormer] = useState(false);
   const [dragging, setDragging] = useState<string | null>(null);
+  // Mouse drags after a few pixels; touch needs a long-press, so a swipe that starts on a card
+  // still scrolls the page (no touch-action: none on the cards).
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 150, tolerance: 6 } }),
+    useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 8 } }),
     useSensor(KeyboardSensor),
   );
 
@@ -125,6 +146,8 @@ function LabBody({ data, on, off, refreshing, onChange }: {
     `NBA.com lineup totals for the ${data.season.id} regular season${data.lastUpdated ? `, refreshed ${new Date(data.lastUpdated).toLocaleDateString()}` : ""}. "No …" rows are exact: totals with those players minus the minutes the others shared with them (games played can't be split that way, so it shows "—").`,
     `Ratings and four factors are box-score estimates per 100 possessions over the minutes shown; pace is possessions per 48 minutes. Under ${SMALL_SAMPLE_MINUTES} minutes together is a small sample.`,
   ];
+  const approx = data.rows.find((r) => r.warning)?.warning;
+  if (approx) notes.push(`Rows tagged "approx.": ${approx}`);
   if (data.season.isDemo) notes.unshift("Demo data — not real stats.");
   const missing = [0, 1, 2, 3, 4, 5].filter((s) => !data.sizes.includes(s));
   if (missing.length) notes.push(`Not loaded for this season: ${missing.map((s) => (s === 0 ? "team totals" : s === 1 ? "player on/off" : `${s}-man groups`)).join(", ")} — some combinations can't be computed until the ETL runs.`);
@@ -135,7 +158,7 @@ function LabBody({ data, on, off, refreshing, onChange }: {
         <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)] gap-6 items-start">
           <Section
             title="Players"
-            subtitle="Drag onto a zone, or tap to put a player on the floor. Most minutes first."
+            subtitle="Drag onto a zone (press and hold on a phone), or tap to put a player on the floor. Most minutes first."
             action={formerCount > 0 ? (
               <label className="flex items-center gap-2 text-xs text-text-muted cursor-pointer">
                 <input type="checkbox" checked={showFormer} onChange={(e) => setShowFormer(e.target.checked)} />
@@ -248,7 +271,7 @@ function PlayerCard({ player: p, disabled, onTap }: { player: LineupPoolPlayer; 
       {...listeners}
       onClick={disabled ? undefined : onTap}
       title={disabled ? `All ${MAX_COMBO_PLAYERS} slots are used — remove someone first` : `Drag, or tap to put ${p.name} on the floor`}
-      className={`flex items-center gap-2.5 rounded-lg border border-border-theme bg-surface px-2.5 py-2 select-none touch-none ${
+      className={`flex items-center gap-2.5 rounded-lg border border-border-theme bg-surface px-2.5 py-2 select-none touch-manipulation [-webkit-touch-callout:none] ${
         disabled ? "opacity-50 cursor-not-allowed" : "cursor-grab hover:border-lakers-purple"
       } ${isDragging ? "opacity-30" : ""}`}
     >
@@ -276,7 +299,7 @@ function ZoneChip({ player: p, zone, onMove }: { player: LineupPoolPlayer; zone:
   const btn = "h-6 w-6 inline-flex items-center justify-center rounded-full text-xs text-text-muted hover:text-text-primary hover:bg-input";
   return (
     <span className={`inline-flex items-center gap-0.5 ${isDragging ? "opacity-30" : ""}`}>
-      <span ref={setNodeRef} {...attributes} {...listeners} className="cursor-grab touch-none select-none" title="Drag to another zone or back to the list">
+      <span ref={setNodeRef} {...attributes} {...listeners} className="cursor-grab touch-manipulation select-none [-webkit-touch-callout:none]" title="Drag to another zone or back to the list">
         <PlayerChip player={p} />
       </span>
       <button type="button" onClick={() => onMove(p.id, other)} className={btn} title={`Move to "${other === "on" ? "On the floor" : "Off the floor"}"`} aria-label={`Move ${p.name} ${other} the floor`}>
@@ -303,7 +326,7 @@ const COLS: { key: keyof ComboRow; label: string; title: string; fmt: (v: number
   { key: "plusMinus", label: "+/-", title: "Point differential over those minutes", fmt: (v) => fmtSigned(v, 0) },
   { key: "offRtg", label: "ORtg", title: "Points scored per 100 possessions (estimate)", fmt: (v) => fmtNum(v) },
   { key: "defRtg", label: "DRtg", title: "Points allowed per 100 possessions (lower is better)", fmt: (v) => fmtNum(v), lowerBetter: true },
-  { key: "pace", label: "Pace", title: "Possessions per 48 minutes", fmt: (v) => fmtNum(v) },
+  { key: "pace", label: "Pace/48", title: "Possessions per 48 minutes (lineup data has minutes; team pace elsewhere is per game)", fmt: (v) => fmtNum(v) },
   { key: "efgPct", label: "eFG%", title: "(FGM + 0.5·3PM) / FGA", fmt: (v) => fmtPct(v) },
   { key: "tovPct", label: "TOV%", title: "Turnovers per play (lower is better)", fmt: (v) => fmtPct(v), lowerBetter: true },
   { key: "orebPct", label: "OREB%", title: "Share of own misses rebounded", fmt: (v) => fmtPct(v) },
@@ -350,6 +373,11 @@ function ComboLabel({ row, byId }: { row: ComboRow; byId: Map<string, LineupPool
       <div className="min-w-0">
         <p className="text-sm text-text-primary leading-tight">{row.label}</p>
         <span className={`inline-block mt-0.5 rounded px-1.5 py-0.5 text-[10px] uppercase tracking-wide ${tag.cls}`}>{tagText(row, byId)}</span>
+        {row.warning && (
+          <span className="ml-1 inline-block rounded px-1.5 py-0.5 text-[10px] uppercase tracking-wide bg-lakers-gold/25 text-lakers-gold-dark dark:text-lakers-gold" title={row.warning}>
+            approx.
+          </span>
+        )}
         {row.smallSample && (
           <span className="ml-1 inline-block rounded px-1.5 py-0.5 text-[10px] uppercase tracking-wide bg-input text-text-muted" title={`Under ${SMALL_SAMPLE_MINUTES} minutes together — treat with caution`}>
             small sample

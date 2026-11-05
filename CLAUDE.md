@@ -93,7 +93,8 @@ npx playwright test                    # e2e
    relabel one stat as another (the old dashboard plotted `PPG − 10` as "+/-"; PIE is not PER).
 2. **Percentages are stored as 0–1 decimals**; ratings are per 100 possessions; pace is
    possessions per game (box scores carry no minutes, so it is not per-48 and OT games read
-   high). Format only at render time (`src/lib/format.ts`).
+   high). Exception: the Lineup Lab has minutes, so its pace is per 48 and labelled "Pace/48".
+   Format only at render time (`src/lib/format.ts`).
 3. **Rank direction matters.** Lower is better for DRtg, TOV%, opponent eFG%, opponent FT rate,
    opponent OREB%. Use `rankTeams()` in `src/lib/analytics/ranks.ts`, never ad-hoc sorting.
 4. **Small samples are flagged, not hidden.** Fewer than 5 games → show a "small sample" tag

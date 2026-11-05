@@ -10,6 +10,7 @@ import {
   comparisonPlan,
   comparisonRows,
   requiredKeys,
+  sizeCoverage,
   validateSelection,
   type GroupTotals,
 } from '@/lib/analytics/lineupCombos'
@@ -30,19 +31,21 @@ const querySchema = z.object({
 
 type GroupRow = Awaited<ReturnType<typeof prisma.lineupGroupStats.findMany>>[number]
 
+/** Opponent totals only when every field is there — never fill a gap with 0 (that invents a metric). */
+function oppTotals(r: GroupRow): GroupTotals['opp'] {
+  const { oppPts, oppFgm, oppFga, oppFg3m, oppFg3a, oppFtm, oppFta, oppOreb, oppDreb, oppTov } = r
+  if (oppPts == null || oppFgm == null || oppFga == null || oppFg3m == null || oppFg3a == null ||
+      oppFtm == null || oppFta == null || oppOreb == null || oppDreb == null || oppTov == null) return null
+  return { pts: oppPts, fgm: oppFgm, fga: oppFga, fg3m: oppFg3m, fg3a: oppFg3a, ftm: oppFtm, fta: oppFta, oreb: oppOreb, dreb: oppDreb, tov: oppTov }
+}
+
 function toTotals(r: GroupRow): GroupTotals {
-  const hasOpp = r.oppPts != null && r.oppFga != null && r.oppFta != null && r.oppOreb != null && r.oppDreb != null && r.oppTov != null
   return {
     gamesPlayed: r.gamesPlayed,
     minutes: r.minutes,
     pts: r.pts, fgm: r.fgm, fga: r.fga, fg3m: r.fg3m, fg3a: r.fg3a, ftm: r.ftm, fta: r.fta,
     oreb: r.oreb, dreb: r.dreb, ast: r.ast, tov: r.tov, stl: r.stl, blk: r.blk, plusMinus: r.plusMinus,
-    opp: hasOpp
-      ? {
-          pts: r.oppPts!, fgm: r.oppFgm ?? 0, fga: r.oppFga!, fg3m: r.oppFg3m ?? 0, fg3a: r.oppFg3a ?? 0,
-          ftm: r.oppFtm ?? 0, fta: r.oppFta!, oreb: r.oppOreb!, dreb: r.oppDreb!, tov: r.oppTov!,
-        }
-      : null,
+    opp: oppTotals(r),
   }
 }
 
@@ -64,7 +67,7 @@ export async function GET(request: NextRequest) {
 
     const [seasonInfo, sizeRows, onCourt, groups, team] = await Promise.all([
       getSeasonInfo(season),
-      prisma.lineupGroupStats.groupBy({ by: ['groupSize'], where: { teamId, season }, _max: { updatedAt: true } }),
+      prisma.lineupGroupStats.groupBy({ by: ['groupSize'], where: { teamId, season }, _max: { updatedAt: true }, _sum: { minutes: true } }),
       prisma.lineupGroupStats.findMany({ where: { teamId, season, groupSize: 1 }, orderBy: { minutes: 'desc' } }),
       keys.length ? prisma.lineupGroupStats.findMany({ where: { teamId, season, groupKey: { in: keys } } }) : Promise.resolve([] as GroupRow[]),
       prisma.team.findUnique({ where: { id: teamId }, select: { nickname: true } }),
@@ -89,12 +92,13 @@ export async function GET(request: NextRequest) {
     }).sort((a, b) => b.minutes - a.minutes || a.name.localeCompare(b.name))
 
     const sizes = new Set(sizeRows.map((r) => r.groupSize))
+    const coverage = sizeCoverage(new Map(sizeRows.map((r) => [r.groupSize, r._sum.minutes ?? 0])))
     const totals = new Map(groups.map((g) => [g.groupKey, toTotals(g)]))
     const surname = (id: string) => {
       const name = byId.get(id)?.fullName
       return name ? name.split(' ').slice(1).join(' ') || name : `#${id}`
     }
-    const rows = invalid ? [] : comparisonRows((k) => totals.get(k), on, off, sizes, surname, team?.nickname ?? 'Team')
+    const rows = invalid ? [] : comparisonRows((k) => totals.get(k), on, off, sizes, surname, team?.nickname ?? 'Team', coverage)
     const lastUpdated = sizeRows.reduce<Date | null>((max, r) => (r._max.updatedAt && (!max || r._max.updatedAt > max) ? r._max.updatedAt : max), null)
 
     const body: LineupLabData = {

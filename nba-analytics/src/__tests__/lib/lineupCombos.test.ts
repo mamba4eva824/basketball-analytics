@@ -10,6 +10,7 @@ import {
   groupKey,
   groupsFromStints,
   requiredKeys,
+  sizeCoverage,
   validateSelection,
   type GroupTotals,
   type Stint,
@@ -219,5 +220,133 @@ describe('comparison rows', () => {
     if (sel.minutes != null) expect(sel.smallSample).toBe(sel.minutes < SMALL_SAMPLE_MINUTES)
     expect(rows.at(-1)!.kind).toBe('team')
     expect(rows.at(-1)!.smallSample).toBe(false)
+  })
+})
+
+/** Every way to put up to five of `pool` on (and the rest of a subset off): disjoint on/off pairs. */
+function allSelections(pool: string[], max = 5): [string[], string[]][] {
+  const out: [string[], string[]][] = []
+  const walk = (i: number, on: string[], off: string[]) => {
+    if (on.length + off.length > max) return
+    if (i === pool.length) { out.push([on, off]); return }
+    walk(i + 1, on, off)
+    walk(i + 1, [...on, pool[i]], off)
+    walk(i + 1, on, [...off, pool[i]])
+  }
+  walk(0, [], [])
+  return out
+}
+
+describe('adding and removing players (exhaustive)', () => {
+  const sels = allSelections(ROSTER)
+
+  it('covers every disjoint on/off selection of up to five from a nine-man rotation', () => {
+    // Σ_{n≤5} C(9,n)·2^n = 1 + 18 + 144 + 672 + 2016 + 4032
+    expect(sels.length).toBe(6883)
+  })
+
+  it('matches a brute-force count for every one of them, both sides of the ball', () => {
+    let computed = 0
+    for (const [on, off] of sels) {
+      const want = direct(stints, on, off)
+      const { totals, error } = comboTotals(lookup, on, off, ALL_SIZES)
+      if (want.minutes < 0.05 * 2 ** off.length) {
+        expect(error, `on ${on} off ${off}`).toMatch(/Never on the floor/)
+        continue
+      }
+      computed++
+      expect(error).toBeNull()
+      expect(totals!.minutes).toBeCloseTo(want.minutes, 6)
+      expect(totals!.pts).toBe(want.pts)
+      expect(totals!.plusMinus).toBe(want.plusMinus)
+      expect(totals!.fga).toBe(want.fga)
+      expect(totals!.opp!.fga).toBe(want.oppFga)
+      expect(totals!.opp!.dreb).toBe(want.oppDreb)
+    }
+    expect(computed).toBeGreaterThan(3000) // most combinations really happened in 400 stints
+  })
+
+  it('keeps the parts adding up: either way = on the floor + off the floor, for each removed player', () => {
+    for (const [on, off] of sels.filter(([o, x]) => o.length >= 1 && o.length + x.length <= 5)) {
+      const rows = comparisonRows(lookup, on, off, ALL_SIZES, (id) => id)
+      const sel = rows[0]
+      for (const p of on) {
+        const any = rows.find((r) => r.kind === 'any' && r.removed === p)
+        const without = rows.find((r) => r.kind === 'without' && r.removed === p)!
+        if (!any) continue // the "any" row of a one-player selection with nobody off is the team row
+        const part = (r: typeof sel) => (r.error ? 0 : r.plusMinus!)
+        const mins = (r: typeof sel) => (r.error ? 0 : r.minutes!)
+        expect(part(sel) + part(without)).toBe(part(any))
+        expect(mins(sel) + mins(without)).toBeCloseTo(mins(any), 0)
+      }
+    }
+  })
+
+  it('stays correct through a sequence of drags: add, add, move to off, remove, add', () => {
+    const steps: [string[], string[]][] = [
+      [['101'], []],
+      [['101', '102'], []],
+      [['101', '102', '103'], []],
+      [['101', '102'], ['103']], // 103 dragged to "off"
+      [['102'], ['103']], // 101 removed
+      [['102', '104'], ['103']],
+      [['102', '104', '105', '106'], ['103']], // full: 5 slots
+    ]
+    for (const [on, off] of steps) {
+      const rows = comparisonRows(lookup, on, off, ALL_SIZES, (id) => id)
+      const want = direct(stints, on, off)
+      if (rows[0].error) expect(want.minutes).toBeLessThan(0.05 * 2 ** off.length)
+      else expect(rows[0].plusMinus).toBe(want.plusMinus)
+      expect(rows.at(-1)!.kind).toBe('team')
+      expect(rows.at(-1)!.plusMinus).toBe(direct(stints, [], []).plusMinus)
+    }
+  })
+})
+
+describe('sizeCoverage and approximate rows', () => {
+  const minutesBySize = (gs: Map<string, GroupTotals & { size: number }>) => {
+    const m = new Map<number, number>()
+    for (const g of gs.values()) m.set(g.size, (m.get(g.size) ?? 0) + g.minutes)
+    return m
+  }
+
+  it('is 1 for every size of a complete set (each minute has C(5,k) k-man groups)', () => {
+    const cov = sizeCoverage(minutesBySize(groups))
+    for (const k of [1, 2, 3, 4, 5]) expect(cov.get(k)).toBeCloseTo(1, 9)
+  })
+
+  it('flags rows that subtract an incomplete size, but not straight lookups', () => {
+    // drop the 4-man groups with the fewest minutes (like a capped or filtered NBA.com list)
+    const fours = [...groups].filter(([, g]) => g.size === 4).sort((a, b) => a[1].minutes - b[1].minutes)
+    const dropped = new Set(fours.slice(0, Math.ceil(fours.length * 0.4)).map(([k]) => k))
+    const partial = new Map([...groups].filter(([k]) => !dropped.has(k)))
+    const cov = sizeCoverage(minutesBySize(partial))
+    expect(cov.get(4)!).toBeLessThan(0.99)
+    expect(cov.get(3)).toBeCloseTo(1, 9)
+
+    const look = (k: string) => partial.get(k)
+    const on = ['101', '102', '103']
+    expect(comboTotals(look, on, [], ALL_SIZES, cov).warning).toBeNull() // direct 3-man lookup: exact
+    expect(comboTotals(look, on, ['104'], ALL_SIZES, cov).warning).toMatch(/4-man groups cover only \d+%/)
+    expect(comboTotals(look, ['101', '102'], ['103'], ALL_SIZES, cov).warning).toBeNull() // only sizes 2 and 3
+  })
+
+  it("is empty without team minutes, so nothing is flagged", () => {
+    expect(sizeCoverage(new Map([[2, 100]])).size).toBe(0)
+  })
+})
+
+describe('rounding tolerance', () => {
+  it('treats leftover rounding noise as never on the floor, scaled to the number of terms', () => {
+    // NBA.com minute totals rounded to 0.1: a combination that never happened can leave ±0.1 or more
+    const rounded = new Map([...groups].map(([k, g]) => [k, { ...g, minutes: Math.round(g.minutes * 10) / 10 }]))
+    const look = (k: string) => rounded.get(k)
+    let checked = 0
+    for (const [on, off] of allSelections(ROSTER).filter(([, x]) => x.length >= 2)) {
+      if (direct(stints, on, off).minutes > 0) continue
+      checked++
+      expect(comboTotals(look, on, off, ALL_SIZES).error, `on ${on} off ${off}`).toMatch(/Never on the floor/)
+    }
+    expect(checked).toBeGreaterThan(50) // plenty of never-together combinations to check
   })
 })

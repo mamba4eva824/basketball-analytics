@@ -187,7 +187,8 @@ Rebuilt from the live play-by-play on each request; nothing is stored. Replaying
   (`PF ≥ min(period + 1, 5)`) for the mark's period.
 - **Four factors vs season**: tonight's game-so-far value against the focus team's season value
   (its own factor on offense, what its defense allows on defense) and the opponent's own season
-  value. Baseline = `buildTeamProfiles` over games **before the game's ET date** (so a game never
+  value matched to the row (our offense rows: what their defense allows; our defense rows: what
+  their offense does). Baseline = `buildTeamProfiles` over games **before the game's ET date** (so a game never
   compares with itself; a replayed game uses the baseline as of that day). Verdict = direction
   only, respecting rank direction; within 0.05 points (display precision) = "even".
 - **Headlines** (factual bullets, in order): score + stretch winner; biggest run; stretch gaps of
@@ -206,7 +207,14 @@ Rebuilt from the live play-by-play on each request; nothing is stored. Replaying
 - **On / off**: totals with every player in S on and every player in X off are
   `Σ_{A ⊆ X} (−1)^|A| · T(S ∪ A)` (inclusion–exclusion). A group NBA.com doesn't list never shared
   the floor (zero). A needed group *size* that isn't loaded is an error, never zero. |S ∪ X| ≤ 5.
-  Fewer than 0.05 minutes left after subtraction = "never on the floor in this combination".
+  Fewer than `0.05 × 2^|X|` minutes left (rounding allowance per term) = "never on the floor in
+  this combination".
+- **Completeness check** (`sizeCoverage`): every minute has five players on, so a complete list of
+  k-man groups sums to `C(5,k) ×` team minutes. A size under `MIN_COVERAGE` (99%) is incomplete
+  (e.g. a capped NBA.com list); rows that *subtract* it (X non-empty) are tagged "approx." with the
+  coverage. A direct lookup (X empty) is exact regardless.
+- **ETL consistency**: all sizes are replaced together or not at all (`fetch_lineup_groups.py`), so
+  the table never mixes today's sizes with yesterday's. Opponent totals are all-or-nothing per row.
 - **Games played** is not additive: shown only for a group taken straight from NBA.com (X empty).
 - **Ratings**: possessions = `mean(team, opponent)` box-score possessions over those minutes (team
   only if opponent totals are missing). ORtg/DRtg = `100 · PTS / poss`, opponent points =

@@ -16,7 +16,7 @@ import {
   type RawLiveAction,
   type Scored,
 } from "./live";
-import { possessions } from "./teamProfiles";
+import { div, efg, orebPct, possessions, tovPct } from "./teamProfiles";
 import { fmtNum, fmtPct } from "@/lib/format";
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -121,7 +121,10 @@ export interface KeyCheck {
   tonight: number | null;
   /** the focus team's season value (its own factor, or what its defense allows) */
   season: number | null;
-  /** the opponent's own season value for the same factor (what they usually do) */
+  /**
+   * the opponent's matching season value: on our offense rows, what their defense usually allows;
+   * on defense rows, what their offense usually does
+   */
   opponentSeason: number | null;
   /** tonight vs our season, from the focus team's point of view; null when either is missing */
   verdict: "better" | "worse" | "even" | null;
@@ -209,7 +212,6 @@ const elapsedOf = (a: RawLiveAction, regulation: number) => elapsedSeconds(a.per
 const isFga = (a: RawLiveAction) => a.actionType === "2pt" || a.actionType === "3pt";
 const pointsOf = (a: RawLiveAction) =>
   a.shotResult !== "Made" ? 0 : a.actionType === "3pt" ? 3 : a.actionType === "freethrow" ? 1 : 2;
-const div = (a: number, b: number): number | null => (b > 0 ? a / b : null);
 
 function emptySide(tricode: string): StretchSide {
   return {
@@ -340,9 +342,9 @@ export function stretchBox(
 function finishRates(s: StretchSide, opp: StretchSide) {
   const poss = possessions(s);
   s.poss = poss != null && poss > 0 ? poss : null;
-  s.efgPct = div(s.fgm + 0.5 * s.fg3m, s.fga);
-  s.tovPct = div(s.tov, s.fga + 0.44 * s.fta + s.tov);
-  s.orebPct = div(s.oreb, s.oreb + opp.dreb);
+  s.efgPct = efg(s);
+  s.tovPct = tovPct(s);
+  s.orebPct = orebPct(s, opp);
   s.ftRate = div(s.fta, s.fga);
   s.threePct = div(s.fg3m, s.fg3a);
 }
@@ -421,7 +423,8 @@ export function keyChecks(game: { focus: StretchSide; opp: StretchSide }, season
   return KEY_DEFS.map((d) => {
     const tonight = d.side === "offense" ? game.focus[d.metric] : game.opp[d.metric];
     const ours = season?.focus ? (d.side === "offense" ? season.focus[d.metric] : season.focus[OPP_KEY[d.metric]]) : null;
-    const theirs = season?.opp ? season.opp[d.metric] : null;
+    // matched to the row: our offense meets their defense, our defense meets their offense
+    const theirs = season?.opp ? (d.side === "offense" ? season.opp[OPP_KEY[d.metric]] : season.opp[d.metric]) : null;
     return { metric: d.metric, side: d.side, label: d.label, short: d.short, tonight, season: ours, opponentSeason: theirs, verdict: verdict(tonight, ours, d.lowerBetter) };
   });
 }

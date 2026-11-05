@@ -233,7 +233,7 @@ function KeysTable({ keys, us, them, baseline }: { keys: KeyCheck[]; us: string;
             <th className="text-left font-medium py-1">Factor</th>
             <th className="text-right font-medium py-1">Tonight</th>
             <th className="text-right font-medium py-1" title={`${us}'s season value (its own factor, or what its defense allows)`}>{us} season</th>
-            <th className="hidden sm:table-cell text-right font-medium py-1" title={`What ${them} usually does in this factor`}>{them} usual</th>
+            <th className="hidden sm:table-cell text-right font-medium py-1" title={`${them}'s season: what their defense allows on our offense rows, what their offense does on our defense rows`}>{them} usual</th>
             <th className="text-right font-medium py-1"><span className="hidden sm:inline">vs {us} season</span></th>
           </tr>
         </thead>

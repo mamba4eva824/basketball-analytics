@@ -13,8 +13,9 @@ subtraction (inclusion–exclusion, src/lib/analytics/lineupCombos.ts). Opponent
 optional: if that call fails or its columns differ, the opponent fields stay NULL and the app
 falls back to one-sided possessions.
 
-Each group size is replaced as a whole (delete + insert) only when its Base call succeeded, so a
-failed call keeps yesterday's rows instead of leaving a hole.
+All sizes are replaced together or not at all: the app subtracts one size from another, so
+today's 2-man groups next to yesterday's 3-man groups would give wrong "without" numbers. If any
+Base call fails, nothing is written (yesterday's consistent set stays) and the step fails.
 """
 
 import sys
@@ -188,39 +189,42 @@ def fetch_lineup_groups(season=None, team_id=None):
     print(f"[LINEUP GROUPS] Team {team_id}, season {season}...")
 
     by_size = {}
+    failed = []
     for size in GROUP_SIZES:
         base = _try(f"{size}-man Base", lambda: safe_call(TeamDashLineups, group_quantity=size, measure_type_detailed_defense='Base', **common))
         if base is None:
+            failed.append(f"{size}-man groups")
             continue
         opp = _try(f"{size}-man Opponent", lambda: safe_call(TeamDashLineups, group_quantity=size, measure_type_detailed_defense='Opponent', **common))
         by_size[size] = transform_lineup_groups(_lineups_frame(base), _lineups_frame(opp), team_id, season, size)
         print(f"  {size}-man groups: {len(by_size[size])}")
 
     base = _try("on/off Base", lambda: safe_call(TeamPlayerOnOffDetails, measure_type_detailed_defense='Base', **common))
-    if base is not None:
+    if base is None:
+        failed.append("team + player on/off")
+    else:
         opp = _try("on/off Opponent", lambda: safe_call(TeamPlayerOnOffDetails, measure_type_detailed_defense='Opponent', **common))
         rows = transform_on_off(base, opp, team_id, season)
         team_rows = [r for r in rows if r['groupSize'] == 0]
         player_rows = [r for r in rows if r['groupSize'] == 1]
-        if team_rows:
-            by_size[0] = team_rows
-        if player_rows:
-            by_size[1] = player_rows
+        by_size[0] = team_rows
+        by_size[1] = player_rows
         print(f"  team totals: {len(team_rows)}, players on court: {len(player_rows)}")
 
-    written = []
-    if by_size:
-        with get_db() as session:
-            for size, rows in by_size.items():
-                execute_sql(
-                    session,
-                    'DELETE FROM "LineupGroupStats" WHERE "teamId" = :t AND "season" = :s AND "groupSize" = :g',
-                    {'t': team_id, 's': season, 'g': size},
-                )
-                upsert_rows(session, 'LineupGroupStats', rows, LINEUP_GROUP_COLUMNS,
-                            ['teamId', 'season', 'groupKey'], exclude_from_update={'id', 'createdAt'})
-                written.extend(rows)
-        print(f"  [OK] Wrote {len(written)} LineupGroupStats rows (sizes {sorted(by_size)})")
+    if failed:
+        # keep yesterday's complete set rather than mix fresh and stale sizes
+        raise RuntimeError(f"Lineup groups not updated (kept the previous set): {', '.join(failed)} failed")
+
+    written = [r for size in sorted(by_size) for r in by_size[size]]
+    with get_db() as session:
+        execute_sql(
+            session,
+            'DELETE FROM "LineupGroupStats" WHERE "teamId" = :t AND "season" = :s',
+            {'t': team_id, 's': season},
+        )
+        upsert_rows(session, 'LineupGroupStats', written, LINEUP_GROUP_COLUMNS,
+                    ['teamId', 'season', 'groupKey'], exclude_from_update={'id', 'createdAt'})
+    print(f"  [OK] Wrote {len(written)} LineupGroupStats rows (sizes {sorted(by_size)})")
     return written
 
 

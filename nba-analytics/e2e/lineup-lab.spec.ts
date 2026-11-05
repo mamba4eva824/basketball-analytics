@@ -35,4 +35,23 @@ test.describe('Lineup Lab', () => {
     await expect(page).toHaveURL(/off=203076/);
     await expect(page.getByRole('table').getByText('James, no Davis', { exact: true })).toBeVisible();
   });
+
+  test('clicking the Lineups nav pill clears the selection (state follows the URL)', async ({ page }) => {
+    await page.goto('/lineups?on=2544,203076');
+    const zone = page.getByLabel('On the floor together', { exact: true });
+    await expect(zone.getByText('LeBron James')).toBeVisible({ timeout: 15000 });
+    await page.locator('a[href="/lineups"]').first().click();
+    await expect(page).toHaveURL(/\/lineups$/);
+    await expect(zone.getByText('Drop players here')).toBeVisible();
+    // a new pick starts from scratch, not from the stale selection
+    await page.locator('div[role="button"]', { hasText: 'Anthony Davis' }).click();
+    await expect(page).toHaveURL(/on=203076$/);
+  });
+
+  test('player cards let a swipe scroll the page (no touch-action: none)', async ({ page }) => {
+    await page.goto('/lineups');
+    const card = page.locator('div[role="button"]', { hasText: 'LeBron James' });
+    await expect(card).toBeVisible({ timeout: 15000 });
+    expect(await card.evaluate((el) => getComputedStyle(el).touchAction)).toBe('manipulation');
+  });
 });

@@ -118,7 +118,10 @@ describe('runs and keys', () => {
       'offense:efgPct': 'better', 'offense:tovPct': 'worse', 'offense:orebPct': 'even', 'offense:ftRate': null,
       'defense:efgPct': 'better', 'defense:tovPct': 'worse', 'defense:orebPct': 'worse', 'defense:ftRate': 'worse',
     })
+    // defense rows: what their offense usually does; offense rows: what their defense usually allows
     expect(keys.find((k) => k.side === 'defense' && k.metric === 'efgPct')).toMatchObject({ season: 0.53, opponentSeason: 0.51 })
+    expect(keys.find((k) => k.side === 'offense' && k.metric === 'efgPct')).toMatchObject({ season: 0.55, opponentSeason: 0.53 })
+    expect(keys.find((k) => k.side === 'offense' && k.metric === 'tovPct')).toMatchObject({ season: 0.14, opponentSeason: 0.13 })
     expect(keyChecks({ focus: side({}), opp: side({}) }, undefined).every((k) => k.season === null && k.verdict === null)).toBe(true)
   })
 })

@@ -100,3 +100,50 @@ def test_on_off_gives_team_and_player_on_court_rows():
 def test_on_off_without_opponent_call():
     rows = transform_on_off(on_off_frames(), None, LAKERS_ID, SEASON)
     assert rows and all(r['oppPts'] is None for r in rows)
+
+
+def _fake_frames(group_size):
+    """Minimal Lineups frame for TeamDashLineups, or on/off frames for TeamPlayerOnOffDetails."""
+    if group_size is None:
+        return on_off_frames()
+    ids = [LUKA, AR, KESSLER, '1', '2'][:group_size]
+    return [pd.DataFrame([base_row('-' + '-'.join(ids) + '-')])]
+
+
+def test_any_failed_call_writes_nothing(monkeypatch):
+    import pytest
+    import fetch_lineup_groups as m
+
+    def fake_safe_call(endpoint, **kw):
+        if kw.get('group_quantity') == 3:
+            raise RuntimeError('stats.nba.com timeout')
+        return _fake_frames(kw.get('group_quantity'))
+
+    def no_db():
+        raise AssertionError('must not write when a size failed')
+
+    monkeypatch.setattr(m, 'safe_call', fake_safe_call)
+    monkeypatch.setattr(m, 'get_db', no_db)
+    with pytest.raises(RuntimeError, match='3-man groups'):
+        m.fetch_lineup_groups('2026-27', LAKERS_ID)
+
+
+def test_all_sizes_replace_the_team_season_together(monkeypatch):
+    import contextlib
+    import fetch_lineup_groups as m
+
+    sql, upserts = [], []
+
+    @contextlib.contextmanager
+    def fake_db():
+        yield 'session'
+
+    monkeypatch.setattr(m, 'safe_call', lambda endpoint, **kw: _fake_frames(kw.get('group_quantity')))
+    monkeypatch.setattr(m, 'get_db', fake_db)
+    monkeypatch.setattr(m, 'execute_sql', lambda session, q, params: sql.append((q, params)))
+    monkeypatch.setattr(m, 'upsert_rows', lambda session, table, rows, *a, **k: upserts.append(rows))
+    rows = m.fetch_lineup_groups('2026-27', LAKERS_ID)
+    assert len(sql) == 1 and '"groupSize"' not in sql[0][0]  # one delete for the whole team-season
+    assert sql[0][1] == {'t': LAKERS_ID, 's': '2026-27'}
+    assert sorted({r['groupSize'] for r in rows}) == [0, 1, 2, 3, 4, 5]
+    assert upserts == [rows]
