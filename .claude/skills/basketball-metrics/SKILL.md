@@ -224,6 +224,30 @@ Rebuilt from the live play-by-play on each request; nothing is stored. Replaying
   (X off) and `S − p` with p off ("without"); then the whole team.
 - **Small sample**: under `SMALL_SAMPLE_MINUTES` (50) minutes together.
 
+## Season progress (`seasonProgress.ts`, `/api/progress`, `/progress` + dashboard scorecard)
+
+Tracks the focus areas the team is working on through the season. Default focus metrics:
+TOV%, OREB%, opp OREB%, DRtg, net rating (`FOCUS_DEFAULT`); viewers can pin others (saved in
+their browser only).
+
+- **Rank history**: after each of our games, every team's season-to-date profile through that
+  day (`buildTeamProfiles` over games with `gameDate ≤` that day) ranked with `rankProfiles`.
+  "Of N" = teams with a profile that day.
+- **League average**: every side of every game pooled into one profile (totals first, then
+  divide), so league eFG% = all makes / all attempts, league DRtg = league ORtg, net 0. Not a mean
+  of team values.
+- **Scorecard**: season value + rank, our last `RECENT_GAMES` (10) and that window's rank among
+  every team's last 10, league average, and a verdict on last 10 vs season: "improving" /
+  "slipping" past `TREND_MIN_CHANGE` (1 pt for percentages, 2 for ratings, 0.02 for rates, 3 for
+  points), else "steady"; style metrics (pace, 3PA rate) get no verdict.
+- **Rank change / movers**: rank now vs rank after game `max(5, games − 15)`; nothing before game 6
+  (small sample). Movers = quality metrics that moved ≥ `MOVER_MIN_PLACES` (3).
+- **Strengths / weaknesses**: quality metrics (not pace, 3PA rate, PPG, opp PPG) in the top /
+  bottom third of the league today.
+- **Splits**: 10-game blocks and calendar months (UTC month of the ET game date). Each stretch's
+  value, its rank among every team's profile over the same dates, and the league average over those
+  dates. Fewer than 5 games → small sample.
+
 ## Player trends (`playerTrend.ts`, `/advanced` Players tab)
 
 Game by game, 5-game rolling and season to date, totals first then divide (like the team trend);

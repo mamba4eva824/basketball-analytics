@@ -11,6 +11,7 @@ reads it through Prisma and renders two primary dashboards in the browser:
 | `/advanced`  | Advanced analytics, Team / Players tabs: any team or player metric game by game, 5-game average, season rate; NBA.com season advanced lines per player |
 | `/matchup?view=postgame` | Post-game tab: saved post-game (and pre-game) reports from `scouting/`, rendered |
 | `/matchup?view=live` | In-game tab: live score, flow, four factors, box score, shots for today's game, plus in-game reports twice a quarter (6:00 and end of each period) |
+| `/progress`  | Season progress: pinned focus areas (default TOV%, OREB%, opp OREB%, DRtg, net) — league rank after every game, last 10 vs season, 10-game/month splits, strengths, weaknesses, movers; scorecard also on `/` |
 | `/lineups`   | Lineup Lab: drag players on/off the floor to see how combinations do together (NBA.com 2–5-man group totals) |
 
 Supporting pages: `/schedule` (month calendar + list, rest days, back-to-backs), `/standings`, `/roster`, `/games`, `/players/[id]`, `/players/[id]/shots`, `/teams/[id]`.
@@ -31,6 +32,7 @@ nba-analytics/
   src/app/api/matchup/…       ← aggregate endpoint for `/matchup`
   src/app/api/live/…          ← today's game from the NBA live feed (proxied; no DB); /reports = checkpoint reports
   src/app/api/lineups/…       ← Lineup Lab: on/off combinations from LineupGroupStats
+  src/app/api/progress/…      ← season progress: rank history, focus scorecard, splits, movers
   src/app/api/reports/…       ← saved reports read from ../scouting/*.md (local checkout only)
   src/app/api/advanced/…      ← per-game team and player metric trends for `/advanced`
   src/app/api/schedule/…      ← focus-team schedule from ScheduledGame (results, rest, B2B)

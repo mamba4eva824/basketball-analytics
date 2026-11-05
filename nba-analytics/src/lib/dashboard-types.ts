@@ -5,6 +5,7 @@
  *   GET /api/live                     → LiveGameResponse
  *   GET /api/live/reports?game=       → LiveReportsResponse
  *   GET /api/lineups                  → LineupLabData
+ *   GET /api/progress                 → SeasonProgressData
  *   GET /api/schedule                 → ScheduleData
  *   GET /api/advanced/team/[teamId]   → AdvancedTeamData
  *   GET /api/reports                  → ReportMeta[]
@@ -18,6 +19,7 @@ import type { FormSummary, Trend } from "@/lib/analytics/form";
 import type { LiveGameData } from "@/lib/analytics/live";
 import type { CheckpointMark, CheckpointReport } from "@/lib/analytics/ingameReport";
 import type { ComboRow } from "@/lib/analytics/lineupCombos";
+import type { FocusCard, MetricStanding, ProgressPoint, Segment } from "@/lib/analytics/seasonProgress";
 import type { PlayCall } from "@/lib/analytics/playCalls";
 import type { PlayerMetric } from "@/lib/analytics/playerTrend";
 import type { ScheduleEntry, ScheduleSummary } from "@/lib/analytics/schedule";
@@ -350,6 +352,45 @@ export interface LineupLabData {
   /** why a requested selection can't be computed (e.g. too many players, data not loaded) */
   error: string | null;
   lastUpdated: string | null;
+}
+
+// ── /api/progress ────────────────────────────────────────────────────────────
+
+export interface ProgressPointView extends Omit<ProgressPoint, "gameDate" | "opponentId"> {
+  /** ISO game date (ET day) */
+  date: string;
+  opponentAbbr: string;
+}
+
+export interface SegmentView extends Omit<Segment, "from" | "to"> {
+  from: string;
+  to: string;
+}
+
+/** GET /api/progress — the focus team's season progress (Season progress page + dashboard scorecard). */
+export interface SeasonProgressData {
+  season: SeasonInfo;
+  team: TeamRefLite;
+  games: number;
+  rankedTeams: number;
+  /** metrics pinned until the viewer picks their own */
+  focusDefault: RankedMetric[];
+  recentGames: number;
+  segmentGames: number;
+  moverLookback: number;
+  /** game number rank changes are measured from (null: not enough games yet) */
+  moversSince: number | null;
+  /** oldest first: season to date, league rank, last 10 and league average after each game */
+  history: ProgressPointView[];
+  cards: Record<RankedMetric, FocusCard>;
+  blocks: SegmentView[];
+  months: SegmentView[];
+  strengths: MetricStanding[];
+  weaknesses: MetricStanding[];
+  risers: MetricStanding[];
+  fallers: MetricStanding[];
+  lastUpdated: string | null;
+  dataNotes: string[];
 }
 
 // ── /api/schedule ────────────────────────────────────────────────────────────
