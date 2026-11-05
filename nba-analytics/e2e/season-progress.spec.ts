@@ -28,4 +28,14 @@ test.describe('Season progress', () => {
     await page.getByRole('button', { name: 'Reset' }).click();
     await expect(focus.locator('.stat-card')).toHaveCount(5);
   });
+
+  test("Who's driving it lists players for the focus metrics", async ({ page }) => {
+    await page.goto('/progress');
+    const section = page.locator('section', { has: page.getByRole('heading', { name: "Who's driving it" }) });
+    await expect(section).toBeVisible({ timeout: 15000 });
+    await expect(section.getByRole('tab', { name: 'TOV%' })).toHaveAttribute('aria-selected', 'true');
+    await expect(section.getByRole('table')).toBeVisible();
+    await section.getByRole('tab', { name: 'NET' }).click();
+    await expect(section.getByRole('columnheader', { name: 'Impact' })).toBeVisible();
+  });
 });

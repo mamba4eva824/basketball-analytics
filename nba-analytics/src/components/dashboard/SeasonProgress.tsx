@@ -12,6 +12,7 @@ import type { FocusCard, MetricStanding, TrendVerdict } from "@/lib/analytics/se
 import { PageSkeleton } from "@/components/ui/LoadingSkeleton";
 import { ErrorDisplay } from "@/components/ui/ErrorDisplay";
 import { DataNotes, EmptyState, METRIC_META, RankChip, Section, SmallSampleTag, fmtMetric } from "./primitives";
+import { PlayerDrivers } from "./PlayerDrivers";
 import type { ProgressPointView, SeasonProgressData, SegmentView } from "@/lib/dashboard-types";
 
 /**
@@ -54,6 +55,8 @@ export function SeasonProgress() {
           {pinned.map((m) => <RankChart key={m} metric={m} history={data.history} teams={data.rankedTeams} />)}
         </div>
       </Section>
+
+      <PlayerDrivers pinned={pinned} />
 
       <ValueSection data={data} pinned={pinned} />
 

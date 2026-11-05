@@ -6,6 +6,7 @@
  *   GET /api/live/reports?game=       → LiveReportsResponse
  *   GET /api/lineups                  → LineupLabData
  *   GET /api/progress                 → SeasonProgressData
+ *   GET /api/progress/drivers         → PlayerDriversData
  *   GET /api/schedule                 → ScheduleData
  *   GET /api/advanced/team/[teamId]   → AdvancedTeamData
  *   GET /api/reports                  → ReportMeta[]
@@ -20,6 +21,7 @@ import type { LiveGameData } from "@/lib/analytics/live";
 import type { CheckpointMark, CheckpointReport } from "@/lib/analytics/ingameReport";
 import type { ComboRow } from "@/lib/analytics/lineupCombos";
 import type { FocusCard, MetricStanding, ProgressPoint, Segment } from "@/lib/analytics/seasonProgress";
+import type { BoxDriver, BoxStat, OnOffDriver, RatingStat } from "@/lib/analytics/playerDrivers";
 import type { PlayCall } from "@/lib/analytics/playCalls";
 import type { PlayerMetric } from "@/lib/analytics/playerTrend";
 import type { ScheduleEntry, ScheduleSummary } from "@/lib/analytics/schedule";
@@ -390,6 +392,26 @@ export interface SeasonProgressData {
   risers: MetricStanding[];
   fallers: MetricStanding[];
   lastUpdated: string | null;
+  dataNotes: string[];
+}
+
+export interface DriverPlayer {
+  id: string;
+  name: string;
+  headshotUrl: string | null;
+  onRoster: boolean;
+}
+
+/** GET /api/progress/drivers — the players behind each focus metric ("Who's driving it"). */
+export interface PlayerDriversData {
+  season: SeasonInfo;
+  players: Record<string, DriverPlayer>;
+  recentGames: number;
+  teamGames: number;
+  box: Record<BoxStat, { drivers: BoxDriver[]; unattributed: number | null }>;
+  /** null until the Lineup Lab's team + player on/off totals are loaded */
+  onOff: Record<RatingStat, OnOffDriver[]> | null;
+  onOffUpdated: string | null;
   dataNotes: string[];
 }
 

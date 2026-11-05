@@ -29,6 +29,8 @@ const MIN_MINUTES_PER_TERM = 0.05;
  * to C(5, k) × the team's minutes. Below this share, that size's list is missing groups.
  */
 export const MIN_COVERAGE = 0.99;
+/** The error for a combination with no minutes (callers may reword it, e.g. "never off the floor"). */
+export const NEVER_TOGETHER = "Never on the floor in this combination this season.";
 
 export interface OppTotals {
   pts: number;
@@ -195,7 +197,7 @@ export function comboTotals(
   }
   sum.gamesPlayed = off.length === 0 ? (lookup(groupKey(on))?.gamesPlayed ?? 0) : 0;
   if (sum.minutes < MIN_MINUTES_PER_TERM * terms.length) {
-    return { totals: null, error: "Never on the floor in this combination this season.", warning: null };
+    return { totals: null, error: NEVER_TOGETHER, warning: null };
   }
   const warning = thin.size
     ? `Approximate: NBA.com's ${[...thin].sort().map((s) => SIZE_NAMES[s]).join(" and ")} cover only ${[...thin].sort().map((s) => `${Math.round(100 * coverage.get(s)!)}%`).join(" / ")} of the minutes they should, so the subtraction may miss some.`
