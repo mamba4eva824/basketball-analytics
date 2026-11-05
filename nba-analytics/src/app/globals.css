@@ -3,6 +3,11 @@
 /* `dark:` follows the .dark class set by ThemeToggle, not the OS preference */
 @custom-variant dark (&:where(.dark, .dark *));
 
+/*
+ * Apple-style look: SF Pro (system font) with tabular figures, grouped-background greys,
+ * solid rounded cards with soft shadows, frosted header, segmented controls.
+ * Lakers purple / gold stay as the tint colours.
+ */
 :root {
   /* Lakers Palette (constant across themes) */
   --lakers-purple: #552583;
@@ -14,56 +19,69 @@
   --lakers-black: #000000;
   --lakers-white: #FFFFFF;
 
-  /* Light theme (default) — sand/cream like Claude desktop */
-  --background: #F5F0E8;
-  --foreground: #1C1917;
-  --surface: rgba(255, 255, 255, 0.65);
-  --surface-hover: rgba(255, 255, 255, 0.85);
-  --surface-alt: rgba(85, 37, 131, 0.05);
+  /* Light theme (default) — Apple system grouped background */
+  --background: #F5F5F7;
+  --foreground: #1D1D1F;
+  --surface: #FFFFFF;
+  --surface-hover: #FBFBFD;
+  --surface-alt: rgba(118, 118, 128, 0.08);
   --overlay: rgba(0, 0, 0, 0.3);
-  --sidebar-bg: rgba(255, 255, 255, 0.85);
-  --header-bg: rgba(255, 255, 255, 0.65);
-  --text-primary: #1C1917;
-  --text-secondary: #57534E;
-  --text-muted: #78716C;
-  --text-faint: #A8A29E;
-  --heading-accent: #552583;
-  --border-color: rgba(85, 37, 131, 0.12);
-  --border-strong: rgba(85, 37, 131, 0.25);
-  --input-bg: rgba(0, 0, 0, 0.05);
-  --scrollbar-track: #E8E0D4;
-  --bar-bg: rgba(0, 0, 0, 0.06);
+  --sidebar-bg: rgba(255, 255, 255, 0.8);
+  --header-bg: rgba(245, 245, 247, 0.72);
+  --text-primary: #1D1D1F;
+  --text-secondary: #424245;
+  --text-muted: #6E6E73;
+  --text-faint: #86868B;
+  --heading-accent: #1D1D1F;
+  --border-color: rgba(0, 0, 0, 0.07);
+  --border-strong: rgba(0, 0, 0, 0.14);
+  --input-bg: rgba(118, 118, 128, 0.12);
+  --segment-active: #FFFFFF;
+  --scrollbar-thumb: rgba(0, 0, 0, 0.22);
+  --bar-bg: rgba(118, 118, 128, 0.12);
+  --card-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 4px 20px rgba(0, 0, 0, 0.05);
+  --card-shadow-hover: 0 2px 4px rgba(0, 0, 0, 0.05), 0 10px 32px rgba(0, 0, 0, 0.09);
+  --segment-shadow: 0 1px 1px rgba(0, 0, 0, 0.04), 0 2px 8px rgba(0, 0, 0, 0.12);
   color-scheme: light;
 }
 
 :root.dark {
-  /* Dark theme */
-  --background: #0A0A0A;
-  --foreground: #EDEDED;
-  --surface: rgba(0, 0, 0, 0.4);
-  --surface-hover: rgba(0, 0, 0, 0.6);
-  --surface-alt: rgba(0, 0, 0, 0.3);
+  /* Dark theme — true black with elevated #1C1C1E cards */
+  --background: #000000;
+  --foreground: #F5F5F7;
+  --surface: #1C1C1E;
+  --surface-hover: #232325;
+  --surface-alt: rgba(118, 118, 128, 0.18);
   --overlay: rgba(0, 0, 0, 0.6);
-  --sidebar-bg: rgba(0, 0, 0, 0.8);
-  --header-bg: rgba(0, 0, 0, 0.6);
-  --text-primary: #FFFFFF;
-  --text-secondary: #D1D5DB;
-  --text-muted: #9CA3AF;
-  --text-faint: #6B7280;
-  --heading-accent: #FDB927;
-  --border-color: rgba(85, 37, 131, 0.2);
-  --border-strong: rgba(85, 37, 131, 0.4);
-  --input-bg: rgba(255, 255, 255, 0.05);
-  --scrollbar-track: #1a1a1a;
-  --bar-bg: rgba(255, 255, 255, 0.1);
+  --sidebar-bg: rgba(28, 28, 30, 0.8);
+  --header-bg: rgba(22, 22, 23, 0.72);
+  --text-primary: #F5F5F7;
+  --text-secondary: #C7C7CC;
+  --text-muted: #98989D;
+  --text-faint: #7C7C80;
+  --heading-accent: #F5F5F7;
+  --border-color: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.16);
+  --input-bg: rgba(118, 118, 128, 0.24);
+  --segment-active: #636366;
+  --scrollbar-thumb: rgba(255, 255, 255, 0.25);
+  --bar-bg: rgba(118, 118, 128, 0.24);
+  --card-shadow: 0 0 0 0.5px rgba(255, 255, 255, 0.04);
+  --card-shadow-hover: 0 0 0 0.5px rgba(255, 255, 255, 0.08), 0 8px 28px rgba(0, 0, 0, 0.5);
+  --segment-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
   color-scheme: dark;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  /* SF Pro on Apple devices, Inter elsewhere */
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", var(--font-inter), "Helvetica Neue", Arial, sans-serif;
+  /* `font-mono` marks figures across the app; Apple sets them in SF Pro with tabular digits (see .font-mono) */
+  --font-mono: var(--font-sans);
+  /* real code: the font-code utility, and preflight's default for code / kbd / samp / pre */
+  --font-code: ui-monospace, "SF Mono", Menlo, var(--font-geist-mono), monospace;
+  --default-mono-font-family: var(--font-code);
 
   /* Theme-aware semantic colors */
   --color-surface: var(--surface);
@@ -80,7 +98,10 @@
   --color-border-theme: var(--border-color);
   --color-border-strong: var(--border-strong);
   --color-input: var(--input-bg);
+  --color-segment: var(--segment-active);
   --color-bar-bg: var(--bar-bg);
+  --shadow-card: var(--card-shadow);
+  --shadow-segment: var(--segment-shadow);
 
   /* Lakers Colors */
   --color-lakers-purple: var(--lakers-purple);
@@ -93,56 +114,142 @@
   --color-lakers-white: var(--lakers-white);
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: 'Source Sans 3', Arial, Helvetica, sans-serif;
-  transition: background-color 0.3s ease, color 0.3s ease;
+/* Good / bad / warning figures use Apple's system colours (lighter shades for dark mode) */
+@theme {
+  --color-green-400: #30D158;
+  --color-green-500: #28B14C;
+  --color-green-600: #248A3D;
+  --color-red-400: #FF453A;
+  --color-red-500: #FF3B30;
+  --color-red-600: #D70015;
+  --color-amber-400: #FF9F0A;
+  --color-amber-600: #C93400;
 }
 
-h1, h2, h3, h4, h5, h6 {
-  font-family: 'Oswald', sans-serif;
+/*
+ * Base and component rules sit in Tailwind's layers so utilities on an element (font-bold,
+ * shadow-2xl, ring-2, outline-none, rounded-xl…) still win over them.
+ */
+@layer base {
+  body {
+    background: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    letter-spacing: -0.006em;
+    transition: background-color 0.3s ease, color 0.3s ease;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-sans);
+    font-weight: 600;
+    letter-spacing: -0.022em;
+  }
+
+  .font-mono {
+    font-variant-numeric: tabular-nums;
+  }
+
+  ::selection {
+    background: rgba(85, 37, 131, 0.22);
+  }
+
+  :focus-visible {
+    outline: 3px solid rgba(122, 75, 170, 0.55);
+    outline-offset: 2px;
+  }
 }
 
-/* Custom scrollbar */
+/* Thin overlay-style scrollbar */
 ::-webkit-scrollbar {
-  width: 8px;
+  width: 10px;
+  height: 10px;
 }
 
 ::-webkit-scrollbar-track {
-  background: var(--scrollbar-track);
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--lakers-purple);
-  border-radius: 4px;
+  background: var(--scrollbar-thumb);
+  border: 3px solid transparent;
+  background-clip: padding-box;
+  border-radius: 999px;
 }
 
-::-webkit-scrollbar-thumb:hover {
-  background: var(--lakers-purple-light);
-}
+@layer components {
+  /* Card base (name kept from the old frosted style; Apple cards are solid) */
+  .glass-card {
+    background: var(--surface);
+    border: 1px solid var(--border-color);
+    border-radius: 18px;
+    box-shadow: var(--card-shadow);
+    transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease, transform 0.3s ease;
+  }
 
-/* Glass-morphism card base */
-.glass-card {
-  background: var(--surface);
-  backdrop-filter: blur(12px);
-  border: 1px solid var(--border-color);
-  border-radius: 12px;
-  transition: background-color 0.3s ease, border-color 0.3s ease;
-}
+  .gold-glow {
+    box-shadow: var(--card-shadow), 0 0 0 1px rgba(253, 185, 39, 0.25);
+  }
 
-/* Stat card accent */
-.stat-card {
-  border-left: 4px solid var(--lakers-gold);
-}
+  .hover-glow:hover {
+    box-shadow: var(--card-shadow-hover);
+  }
 
-/* Gold glow effect */
-.gold-glow {
-  box-shadow: 0 0 20px rgba(253, 185, 39, 0.15);
-}
+  /*
+   * Segmented control: `.segmented` track around `.segment` buttons. The selected look follows the
+   * button's ARIA state (aria-selected / aria-pressed / aria-checked), so state and style can't drift.
+   */
+  .segmented {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 2px;
+    padding: 3px;
+    border-radius: 10px;
+    background: var(--input-bg);
+  }
 
-/* Purple hover glow */
-.hover-glow:hover {
-  box-shadow: 0 0 20px rgba(85, 37, 131, 0.3);
-  transition: box-shadow 0.3s ease;
+  .segment {
+    border-radius: 7px;
+    font-weight: 500;
+    color: var(--text-muted);
+    transition: color 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  .segment:hover {
+    color: var(--text-primary);
+  }
+
+  .segment:is([aria-selected="true"], [aria-pressed="true"], [aria-checked="true"]) {
+    background: var(--segment-active);
+    color: var(--text-primary);
+    box-shadow: var(--segment-shadow);
+  }
+
+  .segment:disabled {
+    opacity: 0.4;
+  }
+
+  /* Filter capsule; selected = aria-pressed (aria-checked in a radiogroup, aria-selected in a tablist). Override the selected colours with aria-pressed: utilities. */
+  .chip {
+    border-radius: 999px;
+    border: 1px solid transparent;
+    background: var(--input-bg);
+    font-size: 0.75rem;
+    line-height: 1rem;
+    color: var(--text-secondary);
+    transition: color 0.2s ease, background-color 0.2s ease, border-color 0.2s ease;
+  }
+
+  .chip:hover {
+    color: var(--text-primary);
+  }
+
+  .chip:is([aria-pressed="true"], [aria-checked="true"], [aria-selected="true"]) {
+    background: var(--lakers-purple);
+    border-color: var(--lakers-purple);
+    color: #FFFFFF;
+  }
+
+  .chip:disabled {
+    opacity: 0.4;
+  }
 }

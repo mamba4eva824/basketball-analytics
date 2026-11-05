@@ -15,3 +15,4 @@ Pre-game reports written with the `scouting-report` skill from `/api/matchup`, a
 | 2026-10-27 | Trail Blazers @ Lakers | [2026-10-27-POR-at-LAL.md](2026-10-27-POR-at-LAL.md) (backfilled, as of Oct 27) | [L 129-136](2026-10-27-POR-at-LAL-postgame.md) |
 | 2026-10-28 | Lakers @ Clippers | [2026-10-28-LAL-at-LAC.md](2026-10-28-LAL-at-LAC.md) (backfilled, as of Oct 28) | [W 103-87](2026-10-28-LAL-at-LAC-postgame.md) |
 | 2026-10-30 | Lakers @ Warriors | [2026-10-30-LAL-at-GSW.md](2026-10-30-LAL-at-GSW.md) (backfilled, as of Oct 30) | [L 95-112](2026-10-30-LAL-at-GSW-postgame.md) |
+| 2026-11-02 | Heat @ Lakers | [2026-11-02-MIA-at-LAL.md](2026-11-02-MIA-at-LAL.md) (written just after tip-off, as of Nov 2) | [W 138-117](2026-11-02-MIA-at-LAL-postgame.md) |

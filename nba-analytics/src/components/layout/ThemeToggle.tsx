@@ -23,7 +23,7 @@ const OPTIONS: { value: ThemePreference; label: string; icon: string }[] = [
 export function ThemeToggle() {
   const { preference, setPreference } = useTheme();
   return (
-    <div role="radiogroup" aria-label="Color theme" className="flex rounded-lg bg-input border border-border-theme p-0.5">
+    <div role="radiogroup" aria-label="Color theme" className="flex rounded-[10px] bg-input p-[3px]">
       {OPTIONS.map((o) => {
         const active = preference === o.value;
         return (
@@ -33,8 +33,8 @@ export function ThemeToggle() {
             aria-checked={active}
             onClick={() => setPreference(o.value)}
             title={o.value === "system" ? "Follow your device setting" : `${o.label} mode`}
-            className={`flex items-center gap-1.5 px-2 py-1.5 rounded-md text-xs font-medium transition-colors ${
-              active ? "bg-lakers-purple text-white shadow-sm" : "text-text-muted hover:text-text-primary"
+            className={`flex items-center gap-1.5 h-[30px] px-2 rounded-[7px] text-xs font-medium transition-all ${
+              active ? "bg-segment text-text-primary shadow-segment" : "text-text-muted hover:text-text-primary"
             }`}
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden>

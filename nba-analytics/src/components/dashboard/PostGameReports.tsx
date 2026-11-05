@@ -60,7 +60,7 @@ export function PostGameReports({ slug, onSelect }: { slug?: string; onSelect: (
             ))}
           </select>
         </label>
-        <div role="group" aria-label="Report type" className="inline-flex rounded-lg border border-border-theme p-1 gap-1">
+        <div role="group" aria-label="Report type" className="segmented">
           {(["postgame", "pregame"] as ReportKind[]).map((kind) => {
             const target = sibling(kind);
             return (
@@ -69,7 +69,7 @@ export function PostGameReports({ slug, onSelect }: { slug?: string; onSelect: (
                 disabled={!target}
                 aria-pressed={selected?.kind === kind}
                 onClick={() => target && onSelect(target.slug)}
-                className={`px-3 py-1 rounded-md text-xs font-medium transition-colors disabled:opacity-40 ${selected?.kind === kind ? "bg-lakers-purple text-white" : "text-text-muted hover:text-text-primary"}`}
+                className="segment px-3 py-1 text-xs"
               >
                 {kind === "postgame" ? "Post-game" : "Pre-game scouting"}
               </button>
@@ -126,7 +126,7 @@ const MARKDOWN: Components = {
   li: ({ children }) => <li className="leading-relaxed">{children}</li>,
   strong: ({ children }) => <strong className="font-semibold text-text-primary">{children}</strong>,
   a: ({ href, children }) => <ReportLink href={href}>{children}</ReportLink>,
-  code: ({ children }) => <code className="rounded bg-input px-1 py-0.5 font-mono text-xs">{children}</code>,
+  code: ({ children }) => <code className="rounded bg-input px-1 py-0.5 font-code text-xs">{children}</code>,
   table: ({ children }) => (
     <div className="relative overflow-x-auto my-4">
       <table className="w-full text-sm">{children}</table>

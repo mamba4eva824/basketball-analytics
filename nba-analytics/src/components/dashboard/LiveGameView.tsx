@@ -205,7 +205,7 @@ function VoiceControls({ voice }: { voice: VoiceControl }) {
             role="radio"
             aria-checked={settings.rate === r}
             onClick={() => setSettings({ rate: r })}
-            className={`px-2 py-1 rounded-md border transition-colors ${settings.rate === r ? "bg-lakers-purple text-white border-lakers-purple" : "border-border-theme text-text-muted hover:text-text-primary"}`}
+            className="chip px-2 py-1"
           >
             {r}×
           </button>
@@ -253,7 +253,7 @@ function Announcer({ voice, live }: { voice: VoiceControl; live: boolean }) {
           onClick={voice.toggle}
           aria-pressed={voice.on}
           title="Reads play-by-play aloud in a local Ollama voice"
-          className={`px-2.5 py-1 rounded-md border text-xs transition-colors ${voice.on ? "bg-lakers-purple text-white border-lakers-purple" : "border-border-theme text-text-muted hover:text-text-primary"}`}
+          className="chip px-2.5 py-1"
         >
           <span aria-hidden>{voice.on ? "🔊" : "🔈"}</span> Read plays aloud
         </button>
@@ -706,7 +706,7 @@ function BoxScores({ us, them, final }: { us: LiveTeamView; them: LiveTeamView; 
               key={s}
               onClick={() => setSide(s)}
               aria-pressed={side === s}
-              className={`px-2.5 py-1 rounded-md text-xs border transition-colors ${side === s ? "bg-lakers-purple text-white border-lakers-purple" : "border-border-theme text-text-muted hover:text-text-primary"}`}
+              className="chip px-2.5 py-1"
             >
               {s === "us" ? us.tricode : them.tricode}
             </button>
@@ -779,8 +779,6 @@ function ShotMap({ shots, us, them }: { shots: LiveShot[]; us: string; them: str
   const mine = picked ? teamShots.filter((s) => s.personId === picked.personId) : teamShots;
   const made = mine.filter((s) => s.made).length;
   const threes = mine.filter((s) => s.isThree);
-  const chip = (on: boolean) =>
-    `px-2 py-1 rounded-md text-xs border transition-colors ${on ? "bg-lakers-purple text-white border-lakers-purple" : "border-border-theme text-text-muted hover:text-text-primary"}`;
   return (
     <Section
       title="Shot map"
@@ -792,7 +790,7 @@ function ShotMap({ shots, us, them }: { shots: LiveShot[]; us: string; them: str
               key={t}
               onClick={() => { setTeam(t); setPlayer(null); }}
               aria-pressed={team === t}
-              className={`px-2.5 py-1 rounded-md text-xs border transition-colors ${team === t ? "bg-lakers-purple text-white border-lakers-purple" : "border-border-theme text-text-muted hover:text-text-primary"}`}
+              className="chip px-2.5 py-1"
             >
               {t}
             </button>
@@ -802,14 +800,14 @@ function ShotMap({ shots, us, them }: { shots: LiveShot[]; us: string; them: str
     >
       {shooters.length > 0 && (
         <div role="group" aria-label="Shooter" className="flex flex-wrap gap-1.5 mb-3">
-          <button onClick={() => setPlayer(null)} aria-pressed={!picked} className={chip(!picked)}>All</button>
+          <button onClick={() => setPlayer(null)} aria-pressed={!picked} className="chip px-2 py-1">All</button>
           {shooters.map((l) => (
             <button
               key={l.personId}
               onClick={() => setPlayer(picked?.personId === l.personId ? null : l.personId)}
               aria-pressed={picked?.personId === l.personId}
               title={`${l.player}: ${l.fgm}/${l.fga} FG, ${l.fg3m}/${l.fg3a} 3PT`}
-              className={chip(picked?.personId === l.personId)}
+              className="chip px-2 py-1"
             >
               {shortName(l.player)} <span className="font-mono opacity-80">{l.fgm}/{l.fga}</span>
             </button>

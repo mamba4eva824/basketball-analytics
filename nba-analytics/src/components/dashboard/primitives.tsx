@@ -96,7 +96,7 @@ export function MetricTile({ metric, value, sub, smallSample }: {
 }) {
   const meta = METRIC_META[metric];
   return (
-    <div className="glass-card stat-card p-4" title={`${meta.help} · box-score estimate`}>
+    <div className="glass-card p-4" title={`${meta.help} · box-score estimate`}>
       <p className="text-xs uppercase tracking-wider text-text-muted">{meta.label}</p>
       <div className="flex items-baseline gap-2 mt-1">
         <p className="text-2xl font-bold font-mono text-text-primary">{fmtMetric(metric, value?.value)}</p>
@@ -199,7 +199,7 @@ export function WindowToggle({ value, onChange, games }: { value: Window; onChan
           aria-pressed={value === w}
           disabled={w === "last10" && tooFew}
           title={w === "last10" && tooFew ? "10 or fewer games played — same as season" : undefined}
-          className={`px-2.5 py-1 rounded-md text-xs border transition-colors disabled:opacity-40 ${value === w ? "bg-lakers-purple text-white border-lakers-purple" : "border-border-theme text-text-muted hover:text-text-primary"}`}
+          className="chip px-2.5 py-1"
         >
           {w === "season" ? (games != null ? `Season (${games} GP)` : "Season") : "Last 10"}
         </button>

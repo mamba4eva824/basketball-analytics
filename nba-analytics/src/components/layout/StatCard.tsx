@@ -11,30 +11,30 @@ interface StatCardProps {
   selected?: boolean;
   /** hover tooltip, e.g. how the value is computed */
   title?: string;
-  /** overrides the default value size (text-2xl), e.g. for long values on small screens */
+  /** overrides the default value size (text-[28px]), e.g. for long values on small screens */
   valueClassName?: string;
   valueStyle?: CSSProperties;
 }
 
-export function StatCard({ label, value, subtitle, trend, className = "", onClick, selected, title, valueClassName = "text-2xl", valueStyle }: StatCardProps) {
+export function StatCard({ label, value, subtitle, trend, className = "", onClick, selected, title, valueClassName = "text-[28px]", valueStyle }: StatCardProps) {
   return (
     <div
       title={title}
-      className={`glass-card stat-card p-5 hover-glow transition-all duration-300 ${onClick ? "cursor-pointer" : ""} ${selected ? "ring-2 ring-lakers-purple shadow-lg shadow-lakers-purple/20" : ""} ${className}`}
+      className={`glass-card p-5 hover-glow ${onClick ? "cursor-pointer active:scale-[0.98]" : ""} ${selected ? "ring-2 ring-lakers-purple dark:ring-lakers-gold" : ""} ${className}`}
       {...(onClick ? { role: "button", tabIndex: 0 } : {})}
       onClick={onClick}
       onKeyDown={onClick ? (e: React.KeyboardEvent) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onClick(); } } : undefined}
     >
-      <p className="text-xs uppercase tracking-wider text-text-muted mb-1">{label}</p>
+      <p className="text-[13px] font-medium text-text-muted mb-1">{label}</p>
       <div className="flex items-end gap-2">
-        <p className={`${valueClassName} font-bold font-mono text-text-primary break-words min-w-0`} style={valueStyle}>{value}</p>
+        <p className={`${valueClassName} leading-tight font-semibold font-mono tracking-tight text-text-primary break-words min-w-0`} style={valueStyle}>{value}</p>
         {trend && trend !== "neutral" && (
-          <span className={`text-sm mb-0.5 ${trend === "up" ? "text-green-400" : "text-red-400"}`}>
+          <span className={`text-sm mb-1 ${trend === "up" ? "text-green-600 dark:text-green-400" : "text-red-500 dark:text-red-400"}`}>
             {trend === "up" ? "\u25B2" : "\u25BC"}
           </span>
         )}
       </div>
-      {subtitle && <p className="text-xs text-text-faint mt-1">{subtitle}</p>}
+      {subtitle && <p className="text-xs text-text-muted mt-1">{subtitle}</p>}
     </div>
   );
 }

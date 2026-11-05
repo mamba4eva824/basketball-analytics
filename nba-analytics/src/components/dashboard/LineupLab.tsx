@@ -185,7 +185,7 @@ function LabBody({ data, on, off, refreshing, onChange }: {
               title="Build a combination"
               subtitle={`${used} of ${MAX_COMBO_PLAYERS} slots used (on + off) — NBA.com reports groups of up to five`}
               action={used ? (
-                <button onClick={() => onChange([], [])} className="text-xs rounded-md border border-border-theme px-2.5 py-1 text-text-primary hover:border-lakers-purple">
+                <button onClick={() => onChange([], [])} className="chip px-2.5 py-1">
                   Clear
                 </button>
               ) : undefined}
