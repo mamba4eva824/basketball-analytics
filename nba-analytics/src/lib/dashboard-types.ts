@@ -3,6 +3,8 @@
  *   GET /api/dashboard/team/[teamId]  → TeamDashboardData
  *   GET /api/matchup                  → MatchupData
  *   GET /api/live                     → LiveGameResponse
+ *   GET /api/live/reports?game=       → LiveReportsResponse
+ *   GET /api/lineups                  → LineupLabData
  *   GET /api/schedule                 → ScheduleData
  *   GET /api/advanced/team/[teamId]   → AdvancedTeamData
  *   GET /api/reports                  → ReportMeta[]
@@ -14,6 +16,8 @@ import type { RankedMetric } from "@/lib/analytics/ranks";
 import type { RosterStatus } from "@/lib/analytics/roster";
 import type { FormSummary, Trend } from "@/lib/analytics/form";
 import type { LiveGameData } from "@/lib/analytics/live";
+import type { CheckpointMark, CheckpointReport } from "@/lib/analytics/ingameReport";
+import type { ComboRow } from "@/lib/analytics/lineupCombos";
 import type { PlayCall } from "@/lib/analytics/playCalls";
 import type { PlayerMetric } from "@/lib/analytics/playerTrend";
 import type { ScheduleEntry, ScheduleSummary } from "@/lib/analytics/schedule";
@@ -300,6 +304,53 @@ export type LiveGameResponse =
   | { kind: "live"; game: LiveGameData; calls?: PlayCall[] }
   | { kind: "pregame"; pregame: LivePregameView }
   | { kind: "none"; next: UpcomingGameView | null };
+
+/**
+ * GET /api/live/reports?game= — in-game checkpoint reports (period midpoint + end), rebuilt from
+ * the play-by-play, with each team's season four factors as the yardstick.
+ */
+export interface LiveReportsResponse {
+  gameId: string;
+  /** 1 = scheduled, 2 = in progress, 3 = final */
+  status: number;
+  focusTricode: string;
+  oppTricode: string;
+  /** oldest first */
+  reports: CheckpointReport[];
+  /** the next checkpoint while the game is on; null once it's over */
+  next: CheckpointMark | null;
+  /** games behind each team's season four factors (null: no games in the database) */
+  baseline: { season: string; focusGames: number | null; oppGames: number | null };
+  /** the saved pre-game scouting report for this game (scouting/), when there is one */
+  pregame: { slug: string; title: string; keys: string[] } | null;
+}
+
+// ── /api/lineups ─────────────────────────────────────────────────────────────
+
+export interface LineupPoolPlayer {
+  id: string;
+  name: string;
+  position: string | null;
+  jersey: string | null;
+  headshotUrl: string | null;
+  /** season minutes on the floor (NBA.com on/off), for sorting the pool */
+  minutes: number;
+  onRoster: boolean;
+}
+
+export interface LineupLabData {
+  season: SeasonInfo;
+  teamId: string;
+  /** players with on-court data this season, most minutes first */
+  pool: LineupPoolPlayer[];
+  /** group sizes loaded for this season (0 = team, 1 = player on court, 2–5 = N-man groups) */
+  sizes: number[];
+  /** the selection itself, then each player removed ("any" and "without"), then the team */
+  rows: ComboRow[];
+  /** why a requested selection can't be computed (e.g. too many players, data not loaded) */
+  error: string | null;
+  lastUpdated: string | null;
+}
 
 // ── /api/schedule ────────────────────────────────────────────────────────────
 

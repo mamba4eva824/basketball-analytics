@@ -15,7 +15,7 @@ def test_build_steps_order_and_flags():
     names = [s[0] for s in steps]
     assert names == [
         'Teams + seasons', 'Rosters', 'Schedule', 'Team games', 'Player games', 'Starters',
-        'Player seasons', 'Team seasons + standings', 'Lineups', 'Shot charts', 'Injuries',
+        'Player seasons', 'Team seasons + standings', 'Lineups', 'Lineup groups', 'Shot charts', 'Injuries',
     ]
     skipped = {s[0] for s in steps if s[3]}
     assert skipped == {'Schedule', 'Injuries'}

@@ -166,6 +166,56 @@ Built from the NBA live feed for one game in progress; nothing is stored.
 - **Game clock → elapsed**: 12-minute regulation periods, 5-minute overtimes.
 - Shot coordinates are `xLegacy`/`yLegacy` (same system as the stats.nba.com shot chart).
 
+## In-game checkpoint reports (`ingameReport.ts`, `/api/live/reports`, In-game tab)
+
+Rebuilt from the live play-by-play on each request; nothing is stored. Replaying a past game
+(`?view=live&game=`) gives every report the game reached.
+
+- **Marks**: twice a period: the midpoint and the end. 6:00 and 0:00 in a quarter; 2:30 and 0:00
+  in a 5-minute overtime. A mark is reached once the game clock has passed it (inclusive).
+- **Stretch**: plays with `previous mark < elapsed ≤ this mark` (tip-off for the first mark).
+  "Game so far" = tip-off to the mark.
+- **Stretch box score**: FGA = `2pt`/`3pt` actions (end-of-period `heave` actions are not
+  attempts), FTA = `freethrow`, OREB/DREB = player rebounds only (team rebounds have no
+  `personId`, matching the live box score), TOV = every `turnover` (player + team), PF =
+  non-technical fouls, AST/BLK/STL from the shot / turnover action. **Points come from the score
+  fields** at the two marks, not from made shots, so an overturned basket doesn't count.
+- **Four factors / ORtg**: the season formulas on the stretch totals; ORtg = `100 · PTS /
+  mean(both teams' possessions)`. `null` ("—") until a denominator is > 0.
+- **Runs**: unanswered runs of `MIN_REPORT_RUN` (6)+ points that *ended* inside the stretch.
+- **Foul trouble**: personal fouls from the play-by-play up to the mark, with the live rule
+  (`PF ≥ min(period + 1, 5)`) for the mark's period.
+- **Four factors vs season**: tonight's game-so-far value against the focus team's season value
+  (its own factor on offense, what its defense allows on defense) and the opponent's own season
+  value. Baseline = `buildTeamProfiles` over games **before the game's ET date** (so a game never
+  compares with itself; a replayed game uses the baseline as of that day). Verdict = direction
+  only, respecting rank direction; within 0.05 points (display precision) = "even".
+- **Headlines** (factual bullets, in order): score + stretch winner; biggest run; stretch gaps of
+  at least `HEADLINE_GAPS` (3 TOV, 3 OREB, 4 FTA, 3 threes made); each side's top scorer in the
+  stretch if ≥ 5 pts; one "Watch:" line for the factor furthest on the wrong side of the season,
+  only if the gap is ≥ `WATCH_GAP` (5 pts eFG%, 3 pts TOV%, 5 pts OREB%, 0.08 FTA rate); foul trouble.
+- **Pre-game keys**: the "Keys to the game" list from that game's saved pre-game report
+  (`scouting/YYYY-MM-DD-AWY-at-HOM.md`), shown for reference; not auto-graded.
+
+## Lineup Lab (`lineupCombos.ts`, `/api/lineups`, `/lineups`)
+
+- **Data**: NBA.com totals per group (`LineupGroupStats`, ETL `fetch_lineup_groups.py`):
+  team overall (size 0), each player on court (size 1, `TeamPlayerOnOffDetails`), every 2/3/4/5-man
+  group that played (`TeamDashLineups` `GroupQuantity` 2–5). Base + Opponent measure types,
+  `PerMode=Totals`, regular season.
+- **On / off**: totals with every player in S on and every player in X off are
+  `Σ_{A ⊆ X} (−1)^|A| · T(S ∪ A)` (inclusion–exclusion). A group NBA.com doesn't list never shared
+  the floor (zero). A needed group *size* that isn't loaded is an error, never zero. |S ∪ X| ≤ 5.
+  Fewer than 0.05 minutes left after subtraction = "never on the floor in this combination".
+- **Games played** is not additive: shown only for a group taken straight from NBA.com (X empty).
+- **Ratings**: possessions = `mean(team, opponent)` box-score possessions over those minutes (team
+  only if opponent totals are missing). ORtg/DRtg = `100 · PTS / poss`, opponent points =
+  `PTS − PLUS_MINUS` (exact). **Pace here is per 48 minutes** (lineup data has minutes, unlike
+  game box scores). Four factors use the season formulas.
+- **Comparison rows** for selection S, X: the selection; for each p in S, `S − p` "either way"
+  (X off) and `S − p` with p off ("without"); then the whole team.
+- **Small sample**: under `SMALL_SAMPLE_MINUTES` (50) minutes together.
+
 ## Player trends (`playerTrend.ts`, `/advanced` Players tab)
 
 Game by game, 5-game rolling and season to date, totals first then divide (like the team trend);
@@ -234,7 +284,8 @@ Built on the live-game scoring events (corrections already netted out):
 
 ## Things that are NOT available — don't fake them
 
-- On/off splits, tracking data, and real per-game possessions are not ingested.
+- Tracking data and real per-game possessions are not ingested. On/off and lineup groups exist
+  only for the focus team (Lineup Lab); there are no per-game lineup stints.
 - `PlayerSeasonStats.per` actually holds NBA.com **PIE**; label it PIE.
 - `PlayerSeasonStats.gamesStarted` is always 0 (no GS in the endpoint); see "Games started".
 - Injury data is unofficial (ESPN) and may lag; always show its `fetchedAt` time.

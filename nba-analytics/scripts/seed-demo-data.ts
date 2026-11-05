@@ -13,6 +13,7 @@ import 'dotenv/config'
 import { PrismaClient, Prisma, Conference, Division, HomeAway, WinLoss } from '../src/generated/prisma/client'
 import { CURRENT_SEASON, FOCUS_TEAM_ID, previousSeason, seasonStartYear } from '../src/lib/constants'
 import { DEMO_MARKER } from '../src/app/api/_lib/dashboardData'
+import { groupsFromStints, type Stint } from '../src/lib/analytics/lineupCombos'
 
 // Both seed scripts wipe every table first: refuse anything but a local database (e.g. Supabase).
 const dbHost = (() => {
@@ -198,6 +199,7 @@ async function main() {
   await prisma.scheduledGame.deleteMany()
   await prisma.shotChart.deleteMany()
   await prisma.lineupStats.deleteMany()
+  await prisma.lineupGroupStats.deleteMany()
   await prisma.standing.deleteMany()
   await prisma.teamEfficiencySnapshot.deleteMany()
   await prisma.teamGameEfficiency.deleteMany()
@@ -443,6 +445,58 @@ async function main() {
         offRating: off, defRating: def, netRating: off - def, pace: between(97, 103),
       }
     }),
+  })
+
+  // Lineup Lab: synthetic stints for each Lakers game, aggregated into every group NBA.com would
+  // report (team, player on court, 2-5-man groups) so "on"/"off" combinations add up exactly.
+  const lalGames = gameRows.filter((g) => g.homeTeamId === FOCUS_TEAM_ID || g.awayTeamId === FOCUS_TEAM_ID)
+  const rotation = lal.slice(0, 10)
+  const weight = rotation.map((_, i) => (i < 5 ? 3.2 : i < 8 ? 1.6 : 0.6)) // starters play most
+  const impact = rotation.map((_, i) => (i === 0 ? 2.5 : i === 1 ? 1.5 : i === 2 ? 1 : between(-1.5, 1)))
+  const pickFive = () => {
+    const chosen = new Set<number>()
+    while (chosen.size < 5) {
+      const total = weight.reduce((a, w, i) => a + (chosen.has(i) ? 0 : w), 0)
+      let x = rand() * total
+      for (let i = 0; i < rotation.length; i++) {
+        if (chosen.has(i)) continue
+        x -= weight[i]
+        if (x <= 0) { chosen.add(i); break }
+      }
+    }
+    return [...chosen]
+  }
+  const side = (edge: number, minutes: number) => {
+    const fga = int(minutes * 1.5, minutes * 2.1), fg3a = int(fga * 0.3, fga * 0.45)
+    const fgm = Math.min(fga, Math.round(fga * (0.46 + edge * 0.012 + between(-0.08, 0.08))))
+    const fg3m = Math.min(fg3a, fgm, Math.round(fg3a * (0.36 + edge * 0.01 + between(-0.1, 0.1))))
+    const fta = int(0, minutes * 0.7), ftm = Math.round(fta * between(0.65, 0.9))
+    return { pts: 2 * (fgm - fg3m) + 3 * fg3m + ftm, fgm, fga, fg3m, fg3a, ftm, fta, oreb: int(0, minutes * 0.35), dreb: int(minutes * 0.6, minutes * 1.1), tov: int(0, minutes * 0.45) }
+  }
+  const stints: Stint[] = []
+  for (const g of lalGames) {
+    for (let k = 0; k < 14; k++) {
+      const five = pickFive()
+      const edge = five.reduce((a, i) => a + impact[i], 0)
+      const minutes = 48 / 14
+      const us = side(edge, minutes), them = side(-edge, minutes)
+      stints.push({
+        gameId: g.gameId,
+        players: five.map((i) => rotation[i].id),
+        totals: { minutes, ...us, ast: int(us.fgm * 0.5, us.fgm * 0.7), stl: int(0, 2), blk: int(0, 1), plusMinus: us.pts - them.pts },
+        opp: them,
+      })
+    }
+  }
+  await prisma.lineupGroupStats.createMany({
+    data: [...groupsFromStints(stints)].map(([groupKey, g]) => ({
+      teamId: FOCUS_TEAM_ID, season: SEASON, seasonId: SEASON, groupSize: g.size, groupKey,
+      gamesPlayed: g.gamesPlayed, minutes: g.minutes,
+      pts: g.pts, fgm: g.fgm, fga: g.fga, fg3m: g.fg3m, fg3a: g.fg3a, ftm: g.ftm, fta: g.fta,
+      oreb: g.oreb, dreb: g.dreb, ast: g.ast, tov: g.tov, stl: g.stl, blk: g.blk, plusMinus: g.plusMinus,
+      oppPts: g.opp!.pts, oppFgm: g.opp!.fgm, oppFga: g.opp!.fga, oppFg3m: g.opp!.fg3m, oppFg3a: g.opp!.fg3a,
+      oppFtm: g.opp!.ftm, oppFta: g.opp!.fta, oppOreb: g.opp!.oreb, oppDreb: g.opp!.dreb, oppTov: g.opp!.tov,
+    })),
   })
 
   // A couple of injuries: one Lakers player, one on the next opponent
