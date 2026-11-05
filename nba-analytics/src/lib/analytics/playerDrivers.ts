@@ -26,8 +26,14 @@ export const DRIVER_FOR: Partial<Record<RankedMetric, { kind: "box"; stat: BoxSt
 /** Lower is better for turnovers and defensive rating; higher for the rest. */
 const LOWER_BETTER: ReadonlySet<BoxStat | RatingStat> = new Set(["tov", "defRtg"]);
 
-/** Per-36 change between last 10 and season that counts as improving / slipping. */
+/** Per-36 change between last 10 and season that counts as improving / slipping (rebounds). */
 export const PER36_MIN_CHANGE: Record<BoxStat, number> = { tov: 0.5, oreb: 0.5, dreb: 0.75 };
+/**
+ * Turnovers are judged per play the player used (FGA + 0.44·FTA + TOV, the team TOV% formula at
+ * player level), so a heavier load isn't read as sloppier play; this change in TOV per 100 plays
+ * counts as improving / slipping.
+ */
+export const TOV_PER100_MIN_CHANGE = 2;
 /** Under this many minutes in a window, per-36 rates are flagged small sample. */
 export const PER36_SMALL_SAMPLE_MINUTES = 100;
 /** On/off: under this many minutes on — or off — the floor is a small sample. */
@@ -41,6 +47,8 @@ export interface PlayerLog {
   tov: number;
   oreb: number;
   dreb: number;
+  fga: number;
+  fta: number;
 }
 
 /** The team's own totals per game (player + team turnovers, as in the box score). */
@@ -57,6 +65,8 @@ export interface BoxWindow {
   minutes: number;
   total: number;
   per36: number | null;
+  /** turnovers only: 100 · TOV / (FGA + 0.44·FTA + TOV) — turnovers per 100 plays the player used */
+  per100Plays: number | null;
   /** share of the team's total in the games of this window (all team games, played or not) */
   share: number | null;
   smallSample: boolean;
@@ -67,7 +77,9 @@ export interface BoxDriver {
   season: BoxWindow;
   /** the player's games among the team's last RECENT_GAMES */
   recent: BoxWindow;
-  /** last 10 vs season per 36, in the better direction; null with a small last-10 sample */
+  /** NBA.com season usage rate (share of team plays used on the floor), turnovers only; null if not loaded */
+  usage: number | null;
+  /** last 10 vs season (per 100 plays for turnovers, per 36 otherwise), in the better direction; null with a small last-10 sample */
   trend: "improving" | "slipping" | "steady" | null;
 }
 
@@ -89,11 +101,13 @@ function windowTotals(logs: PlayerLog[], team: TeamGameTotals[], stat: BoxStat):
   const minutes = logs.reduce((s, l) => s + (l.minutes ?? 0), 0);
   const total = logs.reduce((s, l) => s + l[stat], 0);
   const teamTotal = team.reduce<number | null>((s, g) => (s == null || g[stat] == null ? null : s + g[stat]!), 0);
+  const plays = logs.reduce((s, l) => s + l.fga + 0.44 * l.fta + l.tov, 0);
   return {
     games: logs.length,
     minutes,
     total,
     per36: per36(total, minutes),
+    per100Plays: stat === "tov" && plays > 0 ? (100 * total) / plays : null,
     share: teamTotal != null && teamTotal > 0 ? total / teamTotal : null,
     smallSample: logs.length < SMALL_SAMPLE_GAMES || minutes < PER36_SMALL_SAMPLE_MINUTES,
   };
@@ -104,7 +118,12 @@ function windowTotals(logs: PlayerLog[], team: TeamGameTotals[], stat: BoxStat):
  * contributors first). Shares are of all the team's games; turnovers include team turnovers no
  * player is charged with, so shares can add up to less than 100%.
  */
-export function boxDrivers(logs: PlayerLog[], teamGames: TeamGameTotals[], stat: BoxStat): BoxDriver[] {
+export function boxDrivers(
+  logs: PlayerLog[],
+  teamGames: TeamGameTotals[],
+  stat: BoxStat,
+  seasonUsage: ReadonlyMap<string, number | null> = new Map(),
+): BoxDriver[] {
   const games = [...teamGames].sort((a, b) => a.gameDate.getTime() - b.gameDate.getTime());
   const recentIds = new Set(games.slice(-RECENT_GAMES).map((g) => g.gameId));
   const recentTeam = games.filter((g) => recentIds.has(g.gameId));
@@ -119,12 +138,15 @@ export function boxDrivers(logs: PlayerLog[], teamGames: TeamGameTotals[], stat:
     .map(([playerId, mine]) => {
       const season = windowTotals(mine, games, stat);
       const recent = windowTotals(mine.filter((l) => recentIds.has(l.gameId)), recentTeam, stat);
+      const rate = (w: BoxWindow) => (stat === "tov" ? w.per100Plays : w.per36);
+      const minChange = stat === "tov" ? TOV_PER100_MIN_CHANGE : PER36_MIN_CHANGE[stat];
       let trend: BoxDriver["trend"] = null;
-      if (!recent.smallSample && season.per36 != null && recent.per36 != null) {
-        const d = recent.per36 - season.per36;
-        trend = Math.abs(d) < PER36_MIN_CHANGE[stat] ? "steady" : (lowerBetter ? d < 0 : d > 0) ? "improving" : "slipping";
+      const [now, base] = [rate(recent), rate(season)];
+      if (!recent.smallSample && now != null && base != null) {
+        const d = now - base;
+        trend = Math.abs(d) < minChange ? "steady" : (lowerBetter ? d < 0 : d > 0) ? "improving" : "slipping";
       }
-      return { playerId, season, recent, trend };
+      return { playerId, season, recent, usage: stat === "tov" ? (seasonUsage.get(playerId) ?? null) : null, trend };
     })
     .sort((a, b) => (b.season.share ?? 0) - (a.season.share ?? 0) || b.season.minutes - a.season.minutes);
 }

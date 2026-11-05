@@ -11,10 +11,10 @@ function fixture() {
   for (let i = 0; i < 20; i++) {
     const gameId = `G${i}`
     const a = i < 10 ? 3 : 1
-    logs.push({ playerId: 'A', gameId, gameDate: day(i), minutes: 30, tov: a, oreb: 2, dreb: 5 })
-    logs.push({ playerId: 'B', gameId, gameDate: day(i), minutes: 20, tov: 1, oreb: 1, dreb: 3 })
-    if (i < 3) logs.push({ playerId: 'C', gameId, gameDate: day(i), minutes: 10, tov: 0, oreb: 1, dreb: 1 })
-    logs.push({ playerId: 'D', gameId, gameDate: day(i), minutes: 0, tov: 0, oreb: 0, dreb: 0 }) // DNP
+    logs.push({ playerId: 'A', gameId, gameDate: day(i), minutes: 30, tov: a, oreb: 2, dreb: 5, fga: 20, fta: 5 })
+    logs.push({ playerId: 'B', gameId, gameDate: day(i), minutes: 20, tov: 1, oreb: 1, dreb: 3, fga: 10, fta: 0 })
+    if (i < 3) logs.push({ playerId: 'C', gameId, gameDate: day(i), minutes: 10, tov: 0, oreb: 1, dreb: 1, fga: 2, fta: 0 })
+    logs.push({ playerId: 'D', gameId, gameDate: day(i), minutes: 0, tov: 0, oreb: 0, dreb: 0, fga: 0, fta: 0 }) // DNP
     team.push({ gameId, gameDate: day(i), tov: a + 1 + 1, oreb: 3 + (i < 3 ? 1 : 0), dreb: 8 + (i < 3 ? 1 : 0) })
   }
   return { team, logs }
@@ -44,6 +44,38 @@ describe('boxDrivers', () => {
     expect(tov[1].trend).toBe('steady')
   })
 
+  it('rates turnovers per 100 plays used and attaches season usage', () => {
+    const withUsage = boxDrivers(logs, team, 'tov', new Map([['A', 0.31], ['B', null]]))
+    const a = withUsage[0]
+    // 40 TOV over 20 games of 20 FGA + 0.44·5 FTA, plus the turnovers themselves
+    expect(a.season.per100Plays).toBeCloseTo((100 * 40) / (20 * 22.2 + 40), 9)
+    expect(a.usage).toBe(0.31)
+    expect(withUsage[1].usage).toBeNull()
+    expect(withUsage[2].usage).toBeNull() // not in the map
+    expect(boxDrivers(logs, team, 'oreb', new Map([['A', 0.31]]))[0]).toMatchObject({ usage: null, season: { per100Plays: null } })
+  })
+
+  it('judges turnover trends per play, so a bigger load with the same care reads steady', () => {
+    // E: first 10 games 20 min, 10 FGA, 1 TOV; last 10 games 40 min, 20 FGA, 2 TOV
+    const e: PlayerLog[] = Array.from({ length: 20 }, (_, i) => ({
+      playerId: 'E', gameId: `G${i}`, gameDate: day(i),
+      minutes: i < 10 ? 20 : 40, tov: i < 10 ? 1 : 2, oreb: 0, dreb: 0, fga: i < 10 ? 10 : 20, fta: 0,
+    }))
+    const [row] = boxDrivers(e, team, 'tov')
+    expect(row.recent.per36).toBeCloseTo(row.season.per36!, 9) // per 36 is flat too here…
+    expect(row.recent.per100Plays).toBeCloseTo(row.season.per100Plays!, 9) // …and so is per play
+    expect(row.trend).toBe('steady')
+    // F: same minutes, but the last 10 games take ~4× the shots with 3 TOV instead of 2 → more TOV
+    // per 36 (2.4 → 3.6), far fewer per play (20 → 9.1 per 100; season 11.6)
+    const f: PlayerLog[] = Array.from({ length: 20 }, (_, i) => ({
+      playerId: 'F', gameId: `G${i}`, gameDate: day(i),
+      minutes: 30, tov: i < 10 ? 2 : 3, oreb: 0, dreb: 0, fga: i < 10 ? 8 : 30, fta: 0,
+    }))
+    const [fr] = boxDrivers(f, team, 'tov')
+    expect(fr.recent.per36!).toBeGreaterThan(fr.season.per36!)
+    expect(fr.trend).toBe('improving')
+  })
+
   it('flags small samples and gives no trend without recent games', () => {
     const c = tov[2]
     expect(c.season).toMatchObject({ games: 3, minutes: 30, smallSample: true })
@@ -67,7 +99,7 @@ describe('boxDrivers', () => {
   })
 
   it('ignores logs from games that aren\'t the team\'s', () => {
-    const extra: PlayerLog[] = [...logs, { playerId: 'A', gameId: 'OTHER', gameDate: day(30), minutes: 40, tov: 9, oreb: 0, dreb: 0 }]
+    const extra: PlayerLog[] = [...logs, { playerId: 'A', gameId: 'OTHER', gameDate: day(30), minutes: 40, tov: 9, oreb: 0, dreb: 0, fga: 0, fta: 0 }]
     expect(boxDrivers(extra, team, 'tov')[0].season.total).toBe(40)
   })
 })

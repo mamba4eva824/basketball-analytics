@@ -24,14 +24,16 @@ export async function GET(request: NextRequest) {
   const teamId = FOCUS_TEAM_ID
 
   try {
-    const [seasonInfo, boxScores, logs, groups] = await Promise.all([
+    const [seasonInfo, boxScores, logs, groups, seasonStats] = await Promise.all([
       getSeasonInfo(season),
       prisma.gameBoxScore.findMany({ where: { season, isPlayoff: false, OR: [{ homeTeamId: teamId }, { awayTeamId: teamId }] } }),
       prisma.playerGameLog.findMany({
         where: { teamId, season },
-        select: { playerId: true, gameId: true, gameDate: true, minutes: true, turnovers: true, reboundsOff: true, reboundsDef: true },
+        select: { playerId: true, gameId: true, gameDate: true, minutes: true, turnovers: true, reboundsOff: true, reboundsDef: true, fieldGoalAtt: true, freeThrowAtt: true },
       }),
       prisma.lineupGroupStats.findMany({ where: { teamId, season, groupSize: { in: [0, 1] } } }),
+      // NBA.com season usage (Player seasons step), for usage-aware turnovers
+      prisma.playerSeasonStats.findMany({ where: { teamId, season }, select: { playerId: true, usageRate: true } }),
     ])
 
     const teamGames: TeamGameTotals[] = boxScores.map((b) => {
@@ -41,12 +43,13 @@ export async function GET(request: NextRequest) {
     })
     const playerLogs = logs.map((l) => ({
       playerId: l.playerId, gameId: l.gameId, gameDate: l.gameDate, minutes: l.minutes,
-      tov: l.turnovers, oreb: l.reboundsOff, dreb: l.reboundsDef,
+      tov: l.turnovers, oreb: l.reboundsOff, dreb: l.reboundsDef, fga: l.fieldGoalAtt, fta: l.freeThrowAtt,
     }))
+    const usage = new Map(seasonStats.map((s) => [s.playerId, s.usageRate]))
 
     const box = {} as PlayerDriversData['box']
     for (const stat of BOX_STATS) {
-      const drivers = boxDrivers(playerLogs, teamGames, stat)
+      const drivers = boxDrivers(playerLogs, teamGames, stat, usage)
       box[stat] = { drivers, unattributed: unattributedShare(drivers) }
     }
 

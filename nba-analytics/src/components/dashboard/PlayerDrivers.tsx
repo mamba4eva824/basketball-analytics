@@ -2,14 +2,14 @@
 import { useState } from "react";
 import { usePlayerDrivers } from "@/lib/hooks/usePlayerDrivers";
 import { fmtNum, fmtPct, fmtSigned } from "@/lib/format";
-import { DRIVER_FOR, ONOFF_SMALL_MINUTES, PER36_MIN_CHANGE, PER36_SMALL_SAMPLE_MINUTES, type BoxDriver, type BoxStat, type OnOffDriver, type RatingStat } from "@/lib/analytics/playerDrivers";
+import { DRIVER_FOR, ONOFF_SMALL_MINUTES, PER36_MIN_CHANGE, PER36_SMALL_SAMPLE_MINUTES, TOV_PER100_MIN_CHANGE, type BoxDriver, type BoxStat, type OnOffDriver, type RatingStat } from "@/lib/analytics/playerDrivers";
 import type { RankedMetric } from "@/lib/analytics/ranks";
 import { PlayerAvatar } from "./PlayerAvatar";
 import { DataNotes, EmptyState, METRIC_META, Section, SmallSampleTag } from "./primitives";
 import type { DriverPlayer, PlayerDriversData } from "@/lib/dashboard-types";
 
 const BOX_TEXT: Record<BoxStat, { stat: string; why: string }> = {
-  tov: { stat: "Turnovers", why: "Who the team's turnovers come from (lower per 36 is better)" },
+  tov: { stat: "Turnovers", why: "Who the team's turnovers come from — judged per play each player uses (FGA + 0.44·FTA + TOV), next to their usage, so a heavy load isn't read as carelessness" },
   oreb: { stat: "Offensive rebounds", why: "Who grabs the team's offensive rebounds" },
   dreb: { stat: "Defensive rebounds", why: "Our defensive rebounds are what keep the opponent's offensive-rebound rate down" },
 };
@@ -101,18 +101,26 @@ function BoxTable({ data, stat }: { data: PlayerDriversData; stat: BoxStat }) {
   if (!drivers.length) return <EmptyState>No player games yet.</EmptyState>;
   const rows = all ? drivers : drivers.slice(0, SHOW);
   const label = BOX_TEXT[stat].stat;
+  const tov = stat === "tov";
+  // turnovers: rate per 100 plays used (usage-aware); rebounds: per 36 minutes
+  const rate = (w: BoxDriver["season"]) => (tov ? w.per100Plays : w.per36);
+  const rateLabel = tov ? "Per 100 plays" : "Per 36";
+  const rateHelp = tov ? "Turnovers per 100 plays the player used: 100·TOV / (FGA + 0.44·FTA + TOV)" : `${label} per 36 minutes`;
+  const minChange = tov ? TOV_PER100_MIN_CHANGE : PER36_MIN_CHANGE[stat];
   return (
     <div>
       <div className="overflow-x-auto">
-        <table className="w-full text-sm min-w-[620px]">
+        <table className={`w-full text-sm ${tov ? "min-w-[760px]" : "min-w-[620px]"}`}>
           <thead>
             <tr className="text-xs uppercase tracking-wider text-text-muted border-b border-border-theme">
               <th className="text-left font-medium py-2 pr-2">Player</th>
               <th className="text-right font-medium py-2 px-2" title={`Share of the team's ${label.toLowerCase()} this season`}>Share</th>
               <th className="text-right font-medium py-2 px-2" title="Games / minutes this season">GP · MIN</th>
-              <th className="text-right font-medium py-2 px-2" title={`${label} per 36 minutes, season`}>Per 36</th>
-              <th className="text-right font-medium py-2 px-2" title={`${label} per 36 in the team's last ${data.recentGames} games`}>Last {data.recentGames}</th>
-              <th className="text-right font-medium py-2 pl-2" title={`Last ${data.recentGames} vs season per 36, past ±${PER36_MIN_CHANGE[stat]}`}>Trend</th>
+              {tov && <th className="text-right font-medium py-2 px-2" title="NBA.com season usage rate: share of team plays used while on the floor">USG%</th>}
+              <th className="text-right font-medium py-2 px-2" title={`${rateHelp}, season`}>{rateLabel}</th>
+              <th className="text-right font-medium py-2 px-2" title={`${rateHelp}, the team's last ${data.recentGames} games`}>Last {data.recentGames}</th>
+              {tov && <th className="text-right font-medium py-2 px-2" title="Turnovers per 36 minutes, season (volume, not care)">Per 36</th>}
+              <th className="text-right font-medium py-2 pl-2" title={`Last ${data.recentGames} vs season ${rateLabel.toLowerCase()}, past ±${minChange}`}>Trend</th>
             </tr>
           </thead>
           <tbody>
@@ -128,13 +136,15 @@ function BoxTable({ data, stat }: { data: PlayerDriversData; stat: BoxStat }) {
                   </div>
                 </td>
                 <td className="py-1.5 px-2 text-right font-mono text-text-secondary">{r.season.games} · {fmtNum(r.season.minutes, 0)}</td>
+                {tov && <td className="py-1.5 px-2 text-right font-mono text-text-secondary">{fmtPct(r.usage)}</td>}
                 <td className="py-1.5 px-2 text-right font-mono text-text-primary">
-                  {fmtNum(r.season.per36)}{r.season.smallSample && <SmallSampleTag className="ml-1" />}
+                  {fmtNum(rate(r.season))}{r.season.smallSample && <SmallSampleTag className="ml-1" />}
                 </td>
                 <td className="py-1.5 px-2 text-right font-mono text-text-secondary">
-                  {r.recent.games ? fmtNum(r.recent.per36) : "—"}
+                  {r.recent.games ? fmtNum(rate(r.recent)) : "—"}
                   <span className="text-[10px] text-text-faint ml-1">({r.recent.games} g)</span>
                 </td>
+                {tov && <td className="py-1.5 px-2 text-right font-mono text-text-secondary">{fmtNum(r.season.per36)}</td>}
                 <td className={`py-1.5 pl-2 text-right text-xs ${r.trend ? TREND[r.trend].cls : "text-text-faint"}`}>
                   {r.trend ? TREND[r.trend].text : r.recent.smallSample ? "small sample" : "—"}
                 </td>
@@ -149,7 +159,8 @@ function BoxTable({ data, stat }: { data: PlayerDriversData; stat: BoxStat }) {
           {unattributed != null && unattributed < -0.0005 && (
             <span className="text-red-600 dark:text-red-400">{`Player games add up to ${fmtPct(-unattributed)} more ${label.toLowerCase()} than the team box scores — the data is out of sync; re-run the ETL refresh. `}</span>
           )}
-          Per 36 and trends are flagged under 5 games or {PER36_SMALL_SAMPLE_MINUTES} minutes.
+          {tov && "USG% is NBA.com's season figure (\"—\" until the player-seasons step loads it). "}
+          Rates and trends are flagged under 5 games or {PER36_SMALL_SAMPLE_MINUTES} minutes.
         </span>
         {drivers.length > SHOW && (
           <button type="button" onClick={() => setAll(!all)} className="underline hover:text-text-primary">

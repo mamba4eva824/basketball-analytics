@@ -263,15 +263,22 @@ The players behind each focus metric that has a player breakdown (`DRIVER_FOR`):
   share = player total ÷ the team's total over the same games (all team games in the window, from
   the team box score, so team turnovers no player is charged with show as "unattributed").
   "Last 10" = the player's games among the team's last 10. Unattributed = 1 − Σ shares; negative
-  means player logs exceed the team box score (out of sync) and is shown as a warning, not clamped. Trend = last 10 vs season per 36,
-  past `PER36_MIN_CHANGE` (0.5 TOV, 0.5 OREB, 0.75 DREB), direction-aware; none when the last-10
-  window is a small sample (< 5 games or < 100 minutes, same flag as the season column).
+  means player logs exceed the team box score (out of sync) and is shown as a warning, not clamped.
+- **Turnovers are usage-aware**: rated per 100 plays the player used,
+  `100 · TOV / (FGA + 0.44·FTA + TOV)` (the team TOV% formula at player level), shown next to the
+  player's NBA.com **season** USG% (`PlayerSeasonStats.usageRate`) and per 36 (volume). Trend = last
+  10 vs season per 100 plays, past `TOV_PER100_MIN_CHANGE` (2). Rebounds: trend per 36, past
+  `PER36_MIN_CHANGE` (0.5 OREB, 0.75 DREB). No trend when the last-10 window is a small sample
+  (< 5 games or < 100 minutes, same flag as the season column).
 - **On/off drivers**: the Lineup Lab's `comboRow` for (player on) and (player off), season to date
   from NBA.com on/off totals. Impact = on − off, signed so + is better (DRtg flipped). Fewer than
   50 minutes on or off = small sample; never off the floor → no impact ("never off the floor"). On/off mixes in teammates;
   read it alongside the Lineup Lab. Not trended over time (NBA.com on/off is season-to-date only).
-- Not available: usage-adjusted turnovers and per-game player ratings (the `PlayerGameLog`
-  advanced columns aren't loaded by `refresh.py`).
+- **Per-game player advanced** (`PlayerGameLog` usageRate, off/def/net rating, AST%, REB%, pace,
+  TS%, eFG%) are NBA.com's own per-game numbers from `BoxScoreAdvancedV3` (refresh "Player advanced"
+  step); they feed the player pages' game-by-game trends. They are per-game values — don't average
+  them into a season rating (that would need possessions); season numbers come from
+  `PlayerSeasonStats` or the box-score totals above. NBA.com's PIE is not written to `pir`.
 
 ## Player trends (`playerTrend.ts`, `/advanced` Players tab)
 
