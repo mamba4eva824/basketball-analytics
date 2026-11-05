@@ -1,7 +1,8 @@
 """
 Fetch advanced stats, on/off data, and lineup data.
 Populates: LineupStats table.
-Also enriches PlayerGameLog with advanced per-game stats via BoxScoreAdvancedV2.
+PlayerGameLog advanced per-game stats: enrich_player_game_logs_advanced delegates to
+fetch_player_advanced (BoxScoreAdvancedV3).
 """
 
 import sys
@@ -10,11 +11,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 
 from datetime import datetime
 
-from nba_api.stats.endpoints import (
-    TeamPlayerOnOffDetails,
-    BoxScoreAdvancedV2,
-    TeamDashLineups,
-)
+from nba_api.stats.endpoints import TeamDashLineups
 from nba_api.stats.static import teams as nba_teams
 
 from config import (
@@ -25,7 +22,6 @@ from utils import (
     pct_to_decimal, upsert_rows,
 )
 
-from sqlalchemy import text
 
 
 def fetch_lineup_stats(seasons=None, team_ids=None):
@@ -152,107 +148,15 @@ def fetch_lineup_stats(seasons=None, team_ids=None):
 
 def enrich_player_game_logs_advanced(seasons=None, team_ids=None):
     """
-    Fetch BoxScoreAdvancedV2 for games and update PlayerGameLog with advanced stats.
-    This enriches existing PlayerGameLog rows with offRating, defRating, netRating,
-    assistPct, reboundPct, usageRate, pace, pir.
+    Per-game player advanced stats for these teams' games — delegates to the incremental
+    BoxScoreAdvancedV3 step (fetch_player_advanced), the same one refresh.py runs. Kept so
+    run_all.py / run_incremental.py keep working. (The old BoxScoreAdvancedV2 version refetched
+    every game, overwrote `started` and stored PIE in `pir`, relabeling one stat as another.)
     """
-    if seasons is None:
-        seasons = [CURRENT_SEASON_YEAR]
-    if team_ids is None:
-        team_ids = [LAKERS_TEAM_ID]
-
-    print(f"[ADVANCED BOX] Enriching PlayerGameLog with advanced box score stats...")
-
-    # Get game IDs from existing GameBoxScore records
-    with get_db() as session:
-        for season in seasons:
-            for team_id in team_ids:
-                result = session.execute(
-                    text("""
-                        SELECT "gameId" FROM "GameBoxScore"
-                        WHERE "season" = :season
-                        AND ("homeTeamId" = :tid OR "awayTeamId" = :tid)
-                        ORDER BY "gameDate" DESC
-                        LIMIT 82
-                    """),
-                    {'season': season, 'tid': str(team_id)}
-                )
-                game_ids = [r[0] for r in result.fetchall()]
-
-                print(f"  Found {len(game_ids)} games for team {team_id} in {season}")
-
-                updated = 0
-                for gidx, game_id in enumerate(game_ids):
-                    try:
-                        dfs = safe_call(
-                            BoxScoreAdvancedV2,
-                            game_id=game_id,
-                        )
-                        if not dfs or len(dfs) == 0 or dfs[0].empty:
-                            continue
-
-                        player_stats = dfs[0]
-                        for _, prow in player_stats.iterrows():
-                            pid = str(prow.get('PLAYER_ID', ''))
-                            ptid = str(prow.get('TEAM_ID', ''))
-                            if not pid:
-                                continue
-
-                            off_rtg = safe_float(prow.get('OFF_RATING'))
-                            def_rtg = safe_float(prow.get('DEF_RATING'))
-                            net_rtg = safe_float(prow.get('NET_RATING'))
-                            ast_pct = pct_to_decimal(prow.get('AST_PCT'))
-                            reb_pct = pct_to_decimal(prow.get('REB_PCT'))
-                            usg = pct_to_decimal(prow.get('USG_PCT'))
-                            pace_val = safe_float(prow.get('PACE'))
-                            pir_val = safe_float(prow.get('PIE'))
-                            ts_pct = pct_to_decimal(prow.get('TS_PCT'))
-                            efg_pct = pct_to_decimal(prow.get('EFG_PCT'))
-
-                            # Detect if player started (START_POSITION is not empty)
-                            start_pos = str(prow.get('START_POSITION', ''))
-                            started = bool(start_pos.strip())
-
-                            session.execute(
-                                text("""
-                                    UPDATE "PlayerGameLog"
-                                    SET "offRating" = :offRtg,
-                                        "defRating" = :defRtg,
-                                        "netRating" = :netRtg,
-                                        "assistPct" = :astPct,
-                                        "reboundPct" = :rebPct,
-                                        "usageRate" = :usg,
-                                        "pace" = :pace,
-                                        "pir" = :pir,
-                                        "trueShootingPct" = COALESCE(:tsPct, "trueShootingPct"),
-                                        "effectiveFgPct" = COALESCE(:efgPct, "effectiveFgPct"),
-                                        "started" = :started,
-                                        "updatedAt" = NOW()
-                                    WHERE "playerId" = :pid
-                                      AND "gameId" = :gid
-                                      AND "teamId" = :tid
-                                """),
-                                {
-                                    'offRtg': off_rtg, 'defRtg': def_rtg, 'netRtg': net_rtg,
-                                    'astPct': ast_pct, 'rebPct': reb_pct, 'usg': usg,
-                                    'pace': pace_val, 'pir': pir_val,
-                                    'tsPct': ts_pct, 'efgPct': efg_pct,
-                                    'started': started,
-                                    'pid': pid, 'gid': game_id, 'tid': ptid,
-                                }
-                            )
-                            updated += 1
-
-                        if (gidx + 1) % 20 == 0:
-                            session.commit()
-                            print(f"    Processed {gidx+1}/{len(game_ids)} games ({updated} rows updated)")
-
-                    except Exception as e:
-                        print(f"    [WARN] Game {game_id}: {e}")
-                        continue
-
-                session.commit()
-                print(f"  [OK] Updated {updated} PlayerGameLog rows with advanced stats for team {team_id}")
+    import fetch_player_advanced
+    for season in seasons or [CURRENT_SEASON_YEAR]:
+        for team_id in team_ids or [LAKERS_TEAM_ID]:
+            fetch_player_advanced.fetch_focus_team_player_advanced(season, team_id)
 
 
 def run(seasons=None, team_ids=None):

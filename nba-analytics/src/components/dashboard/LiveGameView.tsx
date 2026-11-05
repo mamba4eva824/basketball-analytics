@@ -14,6 +14,7 @@ import { ErrorDisplay } from "@/components/ui/ErrorDisplay";
 import { TeamLogo } from "@/components/ui/TeamLogo";
 import { COURT_H, COURT_W, HalfCourtLines, courtX, courtY } from "@/components/charts/HalfCourt";
 import { GameFlowChart } from "./GameFlowChart";
+import { InGameReports } from "./InGameReports";
 import { PlayerAvatar } from "./PlayerAvatar";
 import { DataNotes, EmptyState, Section } from "./primitives";
 import type {
@@ -276,7 +277,7 @@ function LiveGame({ game, updatedAt, refreshing, voice }: { game: LiveGameData; 
     `Ratings and four factors are box-score estimates over ${poss != null ? Math.round(poss) : "—"} possessions so far. Single-game numbers swing fast.`,
   ];
 
-  // Main column + live rail (lg+): the rail is placed explicitly beside the first five main rows
+  // Main column + live rail (lg+): the rail is placed explicitly beside the first six main rows
   // and sticks below the header while the page scrolls. Below lg it falls in right after the game flow, so the
   // live pieces stay near the top of a narrow pane.
   const main = "lg:col-start-1 min-w-0";
@@ -295,7 +296,7 @@ function LiveGame({ game, updatedAt, refreshing, voice }: { game: LiveGameData; 
         </Section>
 
         {/* top clears the sticky site header (~117 px); taller than the screen, the rail scrolls on its own */}
-        <aside aria-label="Live" className="min-w-0 space-y-6 lg:col-start-2 lg:row-start-1 lg:row-span-5 lg:sticky lg:top-[8.5rem] lg:max-h-[calc(100vh-9.5rem)] lg:overflow-y-auto lg:overscroll-contain">
+        <aside aria-label="Live" className="min-w-0 space-y-6 lg:col-start-2 lg:row-start-1 lg:row-span-6 lg:sticky lg:top-[8.5rem] lg:max-h-[calc(100vh-9.5rem)] lg:overflow-y-auto lg:overscroll-contain">
           <Announcer voice={voice} live={game.status === 2} />
           <Section title="Play-by-play" subtitle="Latest 15 plays">
             <PlayFeed game={game} />
@@ -304,6 +305,8 @@ function LiveGame({ game, updatedAt, refreshing, voice }: { game: LiveGameData; 
             <WatchList game={game} />
           </Section>
         </aside>
+
+        <InGameReports key={game.gameId} game={game} />
 
         <div className={pair}>
           <Section title="Four factors, tonight" subtitle="Highlighted side is winning that factor">

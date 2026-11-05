@@ -10,7 +10,9 @@ reads it through Prisma and renders two primary dashboards in the browser:
 | `/matchup`   | Who do we play next, how good are they, and where do we have the edge?       |
 | `/advanced`  | Advanced analytics, Team / Players tabs: any team or player metric game by game, 5-game average, season rate; NBA.com season advanced lines per player |
 | `/matchup?view=postgame` | Post-game tab: saved post-game (and pre-game) reports from `scouting/`, rendered |
-| `/matchup?view=live` | In-game tab: live score, flow, four factors, box score, shots for today's game |
+| `/matchup?view=live` | In-game tab: live score, flow, four factors, box score, shots for today's game, plus in-game reports twice a quarter (6:00 and end of each period) |
+| `/progress`  | Season progress: pinned focus areas (default TOV%, OREB%, opp OREB%, DRtg, net) — league rank after every game, last 10 vs season, 10-game/month splits, strengths, weaknesses, movers, "Who's driving it" (player shares / on-off per focus metric); scorecard also on `/` |
+| `/lineups`   | Lineup Lab: drag players on/off the floor to see how combinations do together (NBA.com 2–5-man group totals) |
 
 Supporting pages: `/schedule` (month calendar + list, rest days, back-to-backs), `/standings`, `/roster`, `/games`, `/players/[id]`, `/players/[id]/shots`, `/teams/[id]`.
 
@@ -28,7 +30,9 @@ nba-analytics/
   src/lib/dashboard-types.ts  ← response types for the aggregate dashboard endpoints
   src/app/api/dashboard/…     ← aggregate endpoint for `/`
   src/app/api/matchup/…       ← aggregate endpoint for `/matchup`
-  src/app/api/live/…          ← today's game from the NBA live feed (proxied; no DB)
+  src/app/api/live/…          ← today's game from the NBA live feed (proxied; no DB); /reports = checkpoint reports
+  src/app/api/lineups/…       ← Lineup Lab: on/off combinations from LineupGroupStats
+  src/app/api/progress/…      ← season progress: rank history, focus scorecard, splits, movers; /drivers = players per metric
   src/app/api/reports/…       ← saved reports read from ../scouting/*.md (local checkout only)
   src/app/api/advanced/…      ← per-game team and player metric trends for `/advanced`
   src/app/api/schedule/…      ← focus-team schedule from ScheduledGame (results, rest, B2B)
@@ -48,7 +52,7 @@ nba-analytics/
 npm run dev -- -p 4000                 # app at http://localhost:4000 (tests expect port 4000)
 npx prisma db push && npx prisma generate
 npx tsx scripts/seed-demo-data.ts      # synthetic data so the UI renders without the ETL
-etl-env/bin/python etl/refresh.py      # daily refresh, current season, league-wide (~46 API calls)
+etl-env/bin/python etl/refresh.py      # daily refresh, current season, league-wide (~56 API calls + ~1 per new focus-team game)
 etl-env/bin/python etl/run_all.py      # full multi-season backfill (slow, hundreds of calls)
 
 npx tsc --noEmit                       # typecheck
@@ -70,7 +74,7 @@ npx playwright test                    # e2e
   Connect panel — used by both the ETL and the app. Never commit the password.
 - **Row Level Security is on for every table with no policies.** Prisma and the ETL connect as the
   table owner and are unaffected; Supabase's public REST API (anon key) can read/write nothing.
-  Keep it that way — new tables need `ENABLE ROW LEVEL SECURITY` too.
+  Keep it that way — new tables need `ENABLE ROW LEVEL SECURITY` too (e.g. `LineupGroupStats`).
 - **Schema changes:** edit `prisma/schema.prisma`, then apply to Supabase
   (`npx prisma db push` with `DATABASE_URL` set to the session pooler, or generate SQL with
   `npx prisma migrate diff --from-empty --to-schema-datamodel prisma/schema.prisma --script`
@@ -91,7 +95,8 @@ npx playwright test                    # e2e
    relabel one stat as another (the old dashboard plotted `PPG − 10` as "+/-"; PIE is not PER).
 2. **Percentages are stored as 0–1 decimals**; ratings are per 100 possessions; pace is
    possessions per game (box scores carry no minutes, so it is not per-48 and OT games read
-   high). Format only at render time (`src/lib/format.ts`).
+   high). Exception: the Lineup Lab has minutes, so its pace is per 48 and labelled "Pace/48".
+   Format only at render time (`src/lib/format.ts`).
 3. **Rank direction matters.** Lower is better for DRtg, TOV%, opponent eFG%, opponent FT rate,
    opponent OREB%. Use `rankTeams()` in `src/lib/analytics/ranks.ts`, never ad-hoc sorting.
 4. **Small samples are flagged, not hidden.** Fewer than 5 games → show a "small sample" tag

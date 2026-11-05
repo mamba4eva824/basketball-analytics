@@ -99,15 +99,17 @@ function addSide(t: SideTotals, s: BoxSide, poss: number | null) {
   }
 }
 
-const div = (a: number, b: number): number | null => (b > 0 ? a / b : null);
+/** a / b, or null when there is no denominator yet (shown "—"). */
+export const div = (a: number, b: number): number | null => (b > 0 ? a / b : null);
 
-export function efg(t: SideTotals) {
+/** Shared four-factor formulas — team profiles, the live game, in-game reports and the Lineup Lab. */
+export function efg(t: Pick<SideTotals, "fgm" | "fg3m" | "fga">) {
   return div(t.fgm + 0.5 * t.fg3m, t.fga);
 }
-export function tovPct(t: SideTotals) {
+export function tovPct(t: Pick<SideTotals, "tov" | "fga" | "fta">) {
   return div(t.tov, t.fga + 0.44 * t.fta + t.tov);
 }
-export function orebPct(off: SideTotals, def: SideTotals) {
+export function orebPct(off: Pick<SideTotals, "oreb">, def: Pick<SideTotals, "dreb">) {
   if (off.oreb == null || def.dreb == null) return null;
   return div(off.oreb, off.oreb + def.dreb);
 }

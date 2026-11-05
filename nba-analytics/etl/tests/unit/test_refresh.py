@@ -15,12 +15,17 @@ def test_build_steps_order_and_flags():
     names = [s[0] for s in steps]
     assert names == [
         'Teams + seasons', 'Rosters', 'Schedule', 'Team games', 'Player games', 'Starters',
-        'Player seasons', 'Team seasons + standings', 'Lineups', 'Shot charts', 'Injuries',
+        'Player advanced', 'Player seasons', 'Team seasons + standings', 'Lineups', 'Lineup groups', 'Shot charts', 'Injuries',
     ]
     skipped = {s[0] for s in steps if s[3]}
     assert skipped == {'Schedule', 'Injuries'}
     optional = {s[0] for s in steps if s[2]}
     assert optional == {'Injuries'}
+
+
+def test_build_steps_can_skip_player_advanced():
+    steps = refresh.build_steps('2026-27', '1610612747', skip_player_advanced=True)
+    assert {s[0] for s in steps if s[3]} == {'Player advanced'}
 
 
 def test_build_steps_can_skip_shot_charts():
@@ -89,3 +94,18 @@ def test_shot_chart_failure_fails_the_step(monkeypatch):
     step = next(s for s in refresh.build_steps('2026-27', '1610612747') if s[0] == 'Shot charts')
     results = refresh.run_steps([step])
     assert results[0][1] == 'failed'
+
+
+def test_cli_skip_flags_reach_build_steps(monkeypatch):
+    seen = {}
+
+    def fake_build_steps(season, focus_team_id, **kw):
+        seen.update(kw)
+        return []
+
+    monkeypatch.setattr(refresh, 'build_steps', fake_build_steps)
+    monkeypatch.setattr(refresh, 'run_steps', lambda steps: [])
+    monkeypatch.setattr(refresh, 'print_summary', lambda results: None)
+    assert refresh.main(['--skip-player-advanced', '--skip-shots']) == 0
+    assert seen['skip_player_advanced'] is True and seen['skip_shots'] is True
+    assert seen['skip_lineups'] is False

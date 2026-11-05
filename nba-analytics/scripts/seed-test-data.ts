@@ -12,6 +12,7 @@
 
 import 'dotenv/config'
 import { PrismaClient, ShotResult, ShotType, HomeAway, WinLoss, Conference, Division } from '../src/generated/prisma/client'
+import { groupsFromStints, type Stint } from '../src/lib/analytics/lineupCombos'
 
 // Both seed scripts wipe every table first: refuse anything but a local database (e.g. Supabase).
 const dbHost = (() => {
@@ -68,6 +69,7 @@ async function main() {
   await prisma.scheduledGame.deleteMany()
   await prisma.shotChart.deleteMany()
   await prisma.lineupStats.deleteMany()
+  await prisma.lineupGroupStats.deleteMany()
   await prisma.standing.deleteMany()
   await prisma.teamEfficiencySnapshot.deleteMany()
   await prisma.teamGameEfficiency.deleteMany()
@@ -1250,6 +1252,32 @@ async function main() {
         shotValue: 2,
       },
     ],
+  })
+
+  // ------------------------------------------------------------------
+  // 10b. LineupGroupStats (Lineup Lab): two Lakers stints and every group they imply.
+  //      LeBron + AD shared stint 1 only; stint 2 is LeBron without AD.
+  // ------------------------------------------------------------------
+  log('Seeding lineup group stats...')
+  const stint = (gameId: string, players: string[], minutes: number, pts: number, oppPts: number): Stint => ({
+    gameId,
+    players,
+    totals: { minutes, pts, fgm: 20, fga: 40, fg3m: 6, fg3a: 16, ftm: pts - 46, fta: pts - 40, oreb: 5, dreb: 15, ast: 12, tov: 6, stl: 3, blk: 2, plusMinus: pts - oppPts },
+    opp: { pts: oppPts, fgm: 18, fga: 42, fg3m: 5, fg3a: 15, ftm: oppPts - 41, fta: oppPts - 36, oreb: 6, dreb: 14, tov: 7 },
+  })
+  const groups = groupsFromStints([
+    stint('0022500001', [LEBRON_ID, AD_ID, '201566', '1629631', '1630559'], 20, 52, 44),
+    stint('0022500002', [LEBRON_ID, '201566', '1629631', '1630559', '1628398'], 12, 50, 49),
+  ])
+  await prisma.lineupGroupStats.createMany({
+    data: [...groups].map(([groupKey, g]) => ({
+      teamId: LAKERS_ID, season: SEASON_ID, seasonId: SEASON_ID, groupSize: g.size, groupKey,
+      gamesPlayed: g.gamesPlayed, minutes: g.minutes,
+      pts: g.pts, fgm: g.fgm, fga: g.fga, fg3m: g.fg3m, fg3a: g.fg3a, ftm: g.ftm, fta: g.fta,
+      oreb: g.oreb, dreb: g.dreb, ast: g.ast, tov: g.tov, stl: g.stl, blk: g.blk, plusMinus: g.plusMinus,
+      oppPts: g.opp!.pts, oppFgm: g.opp!.fgm, oppFga: g.opp!.fga, oppFg3m: g.opp!.fg3m, oppFg3a: g.opp!.fg3a,
+      oppFtm: g.opp!.ftm, oppFta: g.opp!.fta, oppOreb: g.opp!.oreb, oppDreb: g.opp!.dreb, oppTov: g.opp!.tov,
+    })),
   })
 
   // ------------------------------------------------------------------
