@@ -251,7 +251,7 @@ function ValueSection({ data, pinned }: { data: SeasonProgressData; pinned: Rank
         <div role="tablist" aria-label="Metric" className="flex flex-wrap gap-1">
           {pinned.map((m) => (
             <button key={m} role="tab" aria-selected={m === metric} onClick={() => setPicked(m)}
-              className={`rounded-md px-2.5 py-1 text-xs ${m === metric ? "bg-lakers-purple text-white" : "border border-border-theme text-text-muted hover:text-text-primary"}`}>
+              className="chip px-2.5 py-1">
               {METRIC_META[m].short}
             </button>
           ))}
@@ -298,10 +298,10 @@ function Segments({ data, pinned }: { data: SeasonProgressData; pinned: RankedMe
       title="Season splits"
       subtitle={`Each stretch's value, league rank over the same dates, and the league average below it`}
       action={
-        <div role="tablist" aria-label="Split by" className="inline-flex gap-1 rounded-lg border border-border-theme p-1">
+        <div role="tablist" aria-label="Split by" className="segmented">
           {([["blocks", `${data.segmentGames}-game blocks`], ["months", "Months"]] as const).map(([k, label]) => (
             <button key={k} role="tab" aria-selected={by === k} onClick={() => setBy(k)}
-              className={`rounded-md px-2.5 py-1 text-xs ${by === k ? "bg-lakers-purple text-white" : "text-text-muted hover:text-text-primary"}`}>
+              className="segment px-2.5 py-1 text-xs">
               {label}
             </button>
           ))}

@@ -48,7 +48,7 @@ export function PlayerDrivers({ pinned }: { pinned: RankedMetric[] }) {
         <div role="tablist" aria-label="Focus metric" className="flex flex-wrap gap-1">
           {metrics.map((m) => (
             <button key={m} role="tab" aria-selected={m === metric} onClick={() => setPicked(m)}
-              className={`rounded-md px-2.5 py-1 text-xs ${m === metric ? "bg-lakers-purple text-white" : "border border-border-theme text-text-muted hover:text-text-primary"}`}>
+              className="chip px-2.5 py-1">
               {METRIC_META[m].short}
             </button>
           ))}

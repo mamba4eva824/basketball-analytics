@@ -85,13 +85,7 @@ function CheckpointPicker({ data, regulation, selectedId, unseen, onPick }: {
             disabled={!has}
             onClick={() => onPick(m.id)}
             title={has ? `Report at ${m.label}` : `Not reached yet`}
-            className={`relative shrink-0 rounded-md border px-2.5 py-1 text-xs font-medium transition-colors ${
-              active
-                ? "bg-lakers-purple text-white border-lakers-purple"
-                : has
-                  ? "border-border-theme text-text-primary hover:border-lakers-purple"
-                  : "border-dashed border-border-theme text-text-muted opacity-60"
-            }`}
+            className={`chip relative shrink-0 px-2.5 py-1 font-medium ${has ? "" : "border-dashed border-border-theme"}`}
           >
             {m.label.replace(/^End of /, "End ")}
             {has && !active && unseen(m.id) && (

@@ -228,7 +228,7 @@
     opacity: 0.4;
   }
 
-  /* Filter capsule; selected = aria-pressed (or aria-checked in a radiogroup). Override the selected colours with aria-pressed: utilities. */
+  /* Filter capsule; selected = aria-pressed (aria-checked in a radiogroup, aria-selected in a tablist). Override the selected colours with aria-pressed: utilities. */
   .chip {
     border-radius: 999px;
     border: 1px solid transparent;
@@ -243,7 +243,7 @@
     color: var(--text-primary);
   }
 
-  .chip:is([aria-pressed="true"], [aria-checked="true"]) {
+  .chip:is([aria-pressed="true"], [aria-checked="true"], [aria-selected="true"]) {
     background: var(--lakers-purple);
     border-color: var(--lakers-purple);
     color: #FFFFFF;
