@@ -15,4 +15,10 @@ Pre-game reports written with the `scouting-report` skill from `/api/matchup`, a
 | 2026-10-27 | Trail Blazers @ Lakers | [2026-10-27-POR-at-LAL.md](2026-10-27-POR-at-LAL.md) (backfilled, as of Oct 27) | [L 129-136](2026-10-27-POR-at-LAL-postgame.md) |
 | 2026-10-28 | Lakers @ Clippers | [2026-10-28-LAL-at-LAC.md](2026-10-28-LAL-at-LAC.md) (backfilled, as of Oct 28) | [W 103-87](2026-10-28-LAL-at-LAC-postgame.md) |
 | 2026-10-30 | Lakers @ Warriors | [2026-10-30-LAL-at-GSW.md](2026-10-30-LAL-at-GSW.md) (backfilled, as of Oct 30) | [L 95-112](2026-10-30-LAL-at-GSW-postgame.md) |
+| 2026-11-01 | Raptors @ Lakers | [2026-11-01-TOR-at-LAL.md](2026-11-01-TOR-at-LAL.md) (backfilled, as of Nov 1) | [W 131-125](2026-11-01-TOR-at-LAL-postgame.md) |
 | 2026-11-02 | Heat @ Lakers | [2026-11-02-MIA-at-LAL.md](2026-11-02-MIA-at-LAL.md) (written just after tip-off, as of Nov 2) | [W 138-117](2026-11-02-MIA-at-LAL-postgame.md) |
+| 2026-11-04 | Lakers @ Kings | [2026-11-04-LAL-at-SAC.md](2026-11-04-LAL-at-SAC.md) (backfilled, as of Nov 4) | [W 116-103](2026-11-04-LAL-at-SAC-postgame.md) |
+| 2026-11-06 | Trail Blazers @ Lakers | [2026-11-06-POR-at-LAL.md](2026-11-06-POR-at-LAL.md) (backfilled, as of Nov 6) | [W 124-118](2026-11-06-POR-at-LAL-postgame.md) |
+| 2026-11-08 | Lakers @ Pistons | [2026-11-08-LAL-at-DET.md](2026-11-08-LAL-at-DET.md) (backfilled, as of Nov 8) | [W 121-116](2026-11-08-LAL-at-DET-postgame.md) |
+| 2026-11-09 | Lakers @ Hawks | [2026-11-09-LAL-at-ATL.md](2026-11-09-LAL-at-ATL.md) (backfilled, as of Nov 9) | [W 124-114](2026-11-09-LAL-at-ATL-postgame.md) |
+| 2026-11-11 | Lakers @ Bucks | [2026-11-11-LAL-at-MIL.md](2026-11-11-LAL-at-MIL.md) (backfilled, as of Nov 11) | [W 123-112](2026-11-11-LAL-at-MIL-postgame.md) |
