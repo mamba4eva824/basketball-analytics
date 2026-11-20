@@ -22,3 +22,7 @@ Pre-game reports written with the `scouting-report` skill from `/api/matchup`, a
 | 2026-11-08 | Lakers @ Pistons | [2026-11-08-LAL-at-DET.md](2026-11-08-LAL-at-DET.md) (backfilled, as of Nov 8) | [W 121-116](2026-11-08-LAL-at-DET-postgame.md) |
 | 2026-11-09 | Lakers @ Hawks | [2026-11-09-LAL-at-ATL.md](2026-11-09-LAL-at-ATL.md) (backfilled, as of Nov 9) | [W 124-114](2026-11-09-LAL-at-ATL-postgame.md) |
 | 2026-11-11 | Lakers @ Bucks | [2026-11-11-LAL-at-MIL.md](2026-11-11-LAL-at-MIL.md) (backfilled, as of Nov 11) | [W 123-112](2026-11-11-LAL-at-MIL-postgame.md) |
+| 2026-11-15 | Lakers @ Suns | [2026-11-15-LAL-at-PHX.md](2026-11-15-LAL-at-PHX.md) (written before tip-off, as of Nov 15) | [W 131-123](2026-11-15-LAL-at-PHX-postgame.md) |
+| 2026-11-17 | Hornets @ Lakers | [2026-11-17-CHA-at-LAL.md](2026-11-17-CHA-at-LAL.md) (backfilled, as of Nov 17) | [W 118-114 OT](2026-11-17-CHA-at-LAL-postgame.md) |
+| 2026-11-18 | Jazz @ Lakers | [2026-11-18-UTA-at-LAL.md](2026-11-18-UTA-at-LAL.md) (written before tip-off, as of Nov 18) | [L 97-109](2026-11-18-UTA-at-LAL-postgame.md) |
+| 2026-11-20 | Kings @ Lakers | [2026-11-20-SAC-at-LAL.md](2026-11-20-SAC-at-LAL.md) (written before tip-off, as of Nov 20) | — |
