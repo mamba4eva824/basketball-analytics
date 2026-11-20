@@ -245,8 +245,17 @@ Two separate lenses; never merged:
   formulas, totals then divide) in missed vs played games. Stand-in starters: started a missed game
   and started under half of his games. Fewer than `MISSED_GAMES_SMALL_SAMPLE` (5) missed games =
   small sample.
+- **Season trend** (`starOffTrend`, `LineupGroupGameStats`, ETL `fetch_lineup_games.py`):
+  NBA.com `TeamPlayerOnOffDetails` with `DateFrom = DateTo =` each game date gives that game's team
+  (size 0) and player-on-court (size 1) totals; off = team − star per game. Games he didn't play
+  are counted, not plotted. Per game: net rating without / with, swing = without − with; under
+  `OFF_GAME_SMALL_MINUTES` (8) bench minutes = small sample (hollow dot / light bar); under 0.5
+  minutes = no off rating (he never sat). Season-to-date and the `ROLLING_WINDOW` (5)-game swing sum
+  the games' totals, then compute ratings — never an average of per-game ratings — so the last
+  season-to-date point equals the season split over the games he played. A game whose NBA.com team
+  totals cover < 47.5 minutes isn't stored yet (retried next refresh); games from the last 3 days are re-fetched for NBA.com corrections. Games before his first game for the team aren't counted as missed. TS% is part of `comboMetrics` (every Lineup Lab row carries it).
 - Not available: teammates' own points/usage during his bench minutes (needs per-game
-  play-by-play stints), a game-by-game trend of the bench split, opponent-strength adjustment.
+  play-by-play stints), opponent-strength adjustment.
 
 ## Season progress (`seasonProgress.ts`, `/api/progress`, `/progress` + dashboard scorecard)
 
@@ -297,7 +306,7 @@ The players behind each focus metric that has a player breakdown (`DRIVER_FOR`):
 - **On/off drivers**: the Lineup Lab's `comboRow` for (player on) and (player off), season to date
   from NBA.com on/off totals. Impact = on − off, signed so + is better (DRtg flipped). Fewer than
   50 minutes on or off = small sample; never off the floor → no impact ("never off the floor"). On/off mixes in teammates;
-  read it alongside the Lineup Lab. Not trended over time (NBA.com on/off is season-to-date only).
+  read it alongside the Lineup Lab. Not trended over time here (season-to-date only; per-game on/off exists only for the "When Luka sits" trend).
 - **Per-game player advanced** (`PlayerGameLog` usageRate, off/def/net rating, AST%, REB%, pace,
   TS%, eFG%) are NBA.com's own per-game numbers from `BoxScoreAdvancedV3` (refresh "Player advanced"
   step); they feed the player pages' game-by-game trends. They are per-game values — don't average

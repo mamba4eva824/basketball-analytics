@@ -1,5 +1,5 @@
 """
-Daily refresh — current season, all 30 teams, using league-wide endpoints (~56 API calls + ~1 per new focus-team game).
+Daily refresh — current season, all 30 teams, using league-wide endpoints (~56 API calls + ~3 per new focus-team game).
 
 Usage:
     python refresh.py                                   # current season
@@ -111,6 +111,11 @@ def build_steps(season, focus_team_id, skip_schedule=False, skip_injuries=False,
         import fetch_lineup_groups
         return fetch_lineup_groups.fetch_lineup_groups(season, focus_team_id)
 
+    def lineup_games():
+        # per-game on/off for the "When Luka sits" trend; only games not loaded yet (2 calls each)
+        import fetch_lineup_games
+        return fetch_lineup_games.fetch_lineup_games(season, focus_team_id)
+
     def shots():
         # one ShotChartDetail call for the whole team season; only games already in GameBoxScore
         # are kept, so this runs after 'Team games'
@@ -133,6 +138,7 @@ def build_steps(season, focus_team_id, skip_schedule=False, skip_injuries=False,
         ('Team seasons + standings', team_seasons_and_standings, False, False),
         ('Lineups', lineups, False, skip_lineups),
         ('Lineup groups', lineup_groups, False, skip_lineups),
+        ('Lineup games', lineup_games, False, skip_lineups),
         ('Shot charts', shots, False, skip_shots),
         ('Injuries', injuries, True, skip_injuries),
     ]
@@ -185,7 +191,7 @@ def main(argv=None):
     parser.add_argument('--skip-injuries', action='store_true', help='Skip the ESPN injury report')
     parser.add_argument('--skip-starters', action='store_true',
                         help='Skip BoxScoreTraditionalV3 starter flags for focus-team games')
-    parser.add_argument('--skip-lineups', action='store_true', help="Skip focus-team lineups (5-man units and Lineup Lab groups)")
+    parser.add_argument('--skip-lineups', action='store_true', help="Skip focus-team lineups (5-man units, Lineup Lab groups, per-game on/off)")
     parser.add_argument('--skip-shots', action='store_true', help='Skip focus-team shot charts')
     parser.add_argument('--skip-player-advanced', action='store_true',
                         help='Skip per-game player usage + ratings (BoxScoreAdvancedV3, ~1 call per new game)')

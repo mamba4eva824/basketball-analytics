@@ -7,7 +7,8 @@ import { getSeasonInfo, loadTeamRefs, toGameRecord, unknownTeam } from '@/app/ap
 import { toGroupTotals } from '@/app/api/_lib/lineupGroups'
 import { CURRENT_SEASON, FOCUS_TEAM_ID } from '@/lib/constants'
 import { sizeCoverage } from '@/lib/analytics/lineupCombos'
-import { DEFAULT_STAR_ID, groupsWithout, missedGames, starSplit, teammateSplits, type FocusGameLog } from '@/lib/analytics/starOff'
+import { DEFAULT_STAR_ID, OFF_GAME_SMALL_MINUTES, groupsWithout, missedGames, starOffTrend, starSplit, teammateSplits, type FocusGameLog } from '@/lib/analytics/starOff'
+import type { GroupTotals } from '@/lib/analytics/lineupCombos'
 import type { DriverPlayer, StarOffCandidate, StarOffData } from '@/lib/dashboard-types'
 
 const querySchema = z.object({
@@ -27,9 +28,10 @@ export async function GET(request: NextRequest) {
   const teamId = FOCUS_TEAM_ID
 
   try {
-    const [seasonInfo, groupRows, boxScores, logs, team, teamRefs] = await Promise.all([
+    const [seasonInfo, groupRows, gameRows, boxScores, logs, team, teamRefs] = await Promise.all([
       getSeasonInfo(season),
       prisma.lineupGroupStats.findMany({ where: { teamId, season } }),
+      prisma.lineupGroupGameStats.findMany({ where: { teamId, season } }),
       prisma.gameBoxScore.findMany({ where: { season, isPlayoff: false, OR: [{ homeTeamId: teamId }, { awayTeamId: teamId }] } }),
       prisma.playerGameLog.findMany({
         where: { teamId, season },
@@ -75,6 +77,9 @@ export async function GET(request: NextRequest) {
       }
     }
     const star: StarOffCandidate | null = starId ? { ...info(starId), minutes: minutesOn.get(starId) ?? 0 } : null
+    if (player && !hasData(player)) {
+      dataNotes.push(`${info(player).name} has no games or on/off minutes for the team in ${season}, so there's nothing to compare. Pick another player above.`)
+    }
 
     // ── bench minutes (NBA.com group totals) ──
     const sizes = new Set(groupRows.map((g) => g.groupSize))
@@ -114,6 +119,33 @@ export async function GET(request: NextRequest) {
       games: m.games.map(({ gameDate, opponentId, ...g }) => ({ ...g, gameDate: gameDate.toISOString(), opponent: teamRefs.get(opponentId) ?? unknownTeam(opponentId) })),
     }
 
+    // ── season trend (per-game NBA.com on/off) ──
+    let trend: StarOffData['trend'] = null
+    if (star && gameRows.length) {
+      const byGame = new Map<string, Map<string, GroupTotals>>()
+      for (const r of gameRows) {
+        if (!byGame.has(r.gameId)) byGame.set(r.gameId, new Map())
+        byGame.get(r.gameId)!.set(r.groupKey, toGroupTotals(r))
+      }
+      const inputs = games
+        .filter((g) => byGame.has(g.gameId))
+        .map((g) => ({ gameId: g.gameId, gameDate: g.gameDate, opponentId: g.home.teamId === teamId ? g.away.teamId : g.home.teamId, groups: byGame.get(g.gameId)! }))
+      const t = starOffTrend(inputs, star.id)
+      trend = {
+        points: t.points.map(({ gameDate, opponentId, ...p }) => ({ ...p, gameDate: gameDate.toISOString(), opponentAbbr: (teamRefs.get(opponentId) ?? unknownTeam(opponentId)).abbreviation })),
+        gamesMissed: t.gamesMissed,
+        window: t.window,
+        smallMinutes: OFF_GAME_SMALL_MINUTES,
+        teamGames: games.length,
+        gamesLoaded: inputs.length,
+      }
+      if (inputs.length < games.length) {
+        dataNotes.push(`The season trend covers ${inputs.length} of ${games.length} games so far; run etl/refresh.py (its "Lineup games" step) from a home connection to load the rest.`)
+      }
+    } else if (star && lineupsReady) {
+      dataNotes.push(`The season trend needs per-game on/off totals, which aren't loaded for ${season} yet. Run etl/refresh.py (its "Lineup games" step) from a home connection.`)
+    }
+
     const used = new Set<string>([
       ...teammates.map((t) => t.playerId),
       ...(groups ? [...groups.bestPairs, ...groups.worstPairs, ...groups.bestTrios, ...groups.topFives].flatMap((r) => r.on) : []),
@@ -133,6 +165,7 @@ export async function GET(request: NextRequest) {
       teammates,
       groups,
       missed,
+      trend,
       dataNotes,
       lastUpdated: lastUpdated?.toISOString() ?? null,
     }

@@ -1,13 +1,14 @@
 import { describe, it, expect } from 'vitest'
-import { SMALL_SAMPLE_MINUTES, groupKey, groupsFromStints, type Stint } from '@/lib/analytics/lineupCombos'
+import { SMALL_SAMPLE_MINUTES, combineTotals, comboMetrics, groupKey, groupsFromStints, type Stint } from '@/lib/analytics/lineupCombos'
 import {
   MISSED_GAMES_SMALL_SAMPLE,
   groupsWithout,
   labHref,
   missedGames,
+  OFF_GAME_SMALL_MINUTES,
+  starOffTrend,
   starSplit,
   teammateSplits,
-  tsPct,
   type FocusGameLog,
 } from '@/lib/analytics/starOff'
 import type { GameRecord } from '@/lib/analytics/teamProfiles'
@@ -48,14 +49,14 @@ describe('starSplit', () => {
     expect(s.on.minutes).toBeCloseTo(160)
     expect(s.shareOff).toBeCloseTo(benchMinutes / 302)
     expect(s.off.label).toBe('Lakers, no P1')
-    expect(s.tsOff).toBeCloseTo(benchPts / (2 * (3 * 10 + 0.44 * 3 * 4)))
+    expect(s.off.tsPct).toBeCloseTo(benchPts / (2 * (3 * 10 + 0.44 * 3 * 4)))
   })
 
   it('is empty, not zero, when the player-level totals are not loaded', () => {
     const s = starSplit(lookup, STAR, new Set([0]), name)
     expect(s.off.error).toMatch(/aren't loaded/)
     expect(s.off.netRtg).toBeNull()
-    expect(s.tsOff).toBeNull()
+    expect(s.off.tsPct).toBeNull()
     expect(s.shareOff).toBeNull()
   })
 })
@@ -116,10 +117,11 @@ describe('labHref', () => {
   })
 })
 
-describe('tsPct', () => {
+describe('tsPct (comboMetrics)', () => {
   it('uses 0.44 · FTA and is null with no attempts', () => {
-    expect(tsPct({ pts: 22, fga: 15, fta: 5 })).toBeCloseTo(22 / (2 * 17.2))
-    expect(tsPct({ pts: 0, fga: 0, fta: 0 })).toBeNull()
+    const z = { ...groups.get('')!, pts: 22, fga: 15, fta: 5 }
+    expect(comboMetrics(z).tsPct).toBeCloseTo(22 / (2 * 17.2))
+    expect(comboMetrics({ ...z, pts: 0, fga: 0, fta: 0 }).tsPct).toBeNull()
   })
 })
 
@@ -172,5 +174,69 @@ describe('missedGames', () => {
     expect(m.starPlayed).toBe(false)
     expect(m.withoutStar.games).toBe(0)
     expect(m.teammates).toEqual([])
+  })
+})
+
+// ── season trend ─────────────────────────────────────────────────────────────
+
+describe('starOffTrend', () => {
+  // three games of stints; the star sits game 2 entirely, plays little bench time in game 3
+  const games = [
+    { gameId: 'g1', day: 1, stints: [stint('g1', ['1', '2', '3', '4', '5'], 36, 90, 70), stint('g1', ['2', '3', '6', '7', '8'], 12, 20, 30)] },
+    { gameId: 'g2', day: 3, stints: [stint('g2', ['2', '3', '4', '6', '7'], 48, 100, 110)] },
+    { gameId: 'g3', day: 5, stints: [stint('g3', ['1', '2', '3', '4', '5'], 44, 110, 100), stint('g3', ['2', '3', '6', '7', '8'], 4, 8, 12)] },
+  ]
+  const input = games.map((g) => ({ gameId: g.gameId, gameDate: new Date(2026, 9, g.day), opponentId: 'OPP', groups: groupsFromStints(g.stints) }))
+  const seasonGroups = groupsFromStints(games.flatMap((g) => g.stints))
+
+  it('plots games he played, counts games he missed, and flags short bench stints', () => {
+    const t = starOffTrend(input, STAR)
+    expect(t.points.map((p) => p.gameId)).toEqual(['g1', 'g3'])
+    expect(t.gamesMissed).toBe(1)
+    expect(t.points[0].offMinutes).toBeCloseTo(12)
+    expect(t.points[0].smallSample).toBe(false)
+    expect(t.points[1].smallSample).toBe(4 < OFF_GAME_SMALL_MINUTES)
+    expect(t.points[0].swing!).toBeCloseTo(t.points[0].offNet! - t.points[0].onNet!)
+    expect(t.points[0].offNet!).toBeLessThan(0)
+    expect(t.points[0].onNet!).toBeGreaterThan(0)
+  })
+
+  it('builds season-to-date from summed totals, matching the season on/off split for the games he played', () => {
+    const t = starOffTrend(input, STAR)
+    const last = t.points[t.points.length - 1]
+    // season split includes game 2 (he sat all of it); the trend's to-date line covers only his games
+    const played = groupsFromStints(games.filter((g) => g.gameId !== 'g2').flatMap((g) => g.stints))
+    const s = starSplit((k) => played.get(k), STAR, ALL_SIZES, name)
+    expect(last.toDateOffNet!).toBeCloseTo(s.off.netRtg!)
+    expect(last.toDateOnNet!).toBeCloseTo(s.on.netRtg!)
+    expect(starSplit((k) => seasonGroups.get(k), STAR, ALL_SIZES, name).off.minutes).toBeCloseTo(64)
+  })
+
+  it('rolls over the last N games he played', () => {
+    const t = starOffTrend(input, STAR, 1)
+    expect(t.points[1].rollingSwing!).toBeCloseTo(t.points[1].swing!)
+    expect(t.window).toBe(1)
+  })
+
+  it("doesn't count games before his first one as missed", () => {
+    const early = { gameId: 'g0', gameDate: new Date(2026, 9, 0), opponentId: 'OPP', groups: groupsFromStints([stint('g0', ['2', '3', '4', '6', '7'], 48, 100, 90)]) }
+    expect(starOffTrend([early, ...input], STAR).gamesMissed).toBe(1)
+  })
+
+  it('leaves a game where he never sat empty, not zero', () => {
+    const full = [{ gameId: 'g9', gameDate: new Date(2026, 9, 9), opponentId: 'OPP', groups: groupsFromStints([stint('g9', ['1', '2', '3', '4', '5'], 48, 100, 90)]) }]
+    const t = starOffTrend(full, STAR)
+    expect(t.points[0].offMinutes).toBe(0)
+    expect(t.points[0].offNet).toBeNull()
+    expect(t.points[0].swing).toBeNull()
+    expect(t.points[0].toDateOffNet).toBeNull()
+    expect(t.points[0].onNet).not.toBeNull()
+  })
+
+  it('combineTotals drops opponent totals when either side lacks them', () => {
+    const a = seasonGroups.get('')!
+    const b = { ...seasonGroups.get(STAR)!, opp: null }
+    expect(combineTotals(a, b, -1).opp).toBeNull()
+    expect(combineTotals(a, seasonGroups.get(STAR)!, -1).opp!.pts).toBe(a.opp!.pts - seasonGroups.get(STAR)!.opp!.pts)
   })
 })

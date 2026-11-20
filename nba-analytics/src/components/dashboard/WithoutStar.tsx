@@ -1,8 +1,9 @@
 "use client";
+import type { ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { format } from "date-fns";
-import { Bar, BarChart, CartesianGrid, Cell, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Bar, BarChart, CartesianGrid, Cell, ComposedChart, Line, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { useStarOff } from "@/lib/hooks/useStarOff";
 import { useThemeColors } from "@/lib/ThemeContext";
 import { DASH, fmtNum, fmtPct, fmtSigned, gameDay } from "@/lib/format";
@@ -12,7 +13,7 @@ import { PageSkeleton } from "@/components/ui/LoadingSkeleton";
 import { ErrorDisplay } from "@/components/ui/ErrorDisplay";
 import { PlayerAvatar } from "./PlayerAvatar";
 import { DataNotes, EmptyState, Section, SmallSampleTag } from "./primitives";
-import type { DriverPlayer, StarOffData } from "@/lib/dashboard-types";
+import type { DriverPlayer, StarOffData, StarOffTrend } from "@/lib/dashboard-types";
 
 const firstName = (name: string) => name.split(" ")[0];
 const surname = (name: string) => name.split(" ").slice(1).join(" ") || name;
@@ -71,7 +72,7 @@ export function WithoutStar() {
             </p>
           </div>
         </div>
-        {data.candidates.length > 1 && (
+        {(data.candidates.length > 1 || !data.candidates.some((c) => c.id === star.id)) && (
           <label className="flex items-center gap-2 text-sm text-text-muted">
             <span>Player</span>
             <select
@@ -80,6 +81,7 @@ export function WithoutStar() {
               onChange={(e) => pick(e.target.value)}
               className="rounded-lg border border-border-theme bg-input px-2 py-1.5 text-text-primary"
             >
+              {!data.candidates.some((c) => c.id === star.id) && <option value={star.id}>{star.name} (no on-court data)</option>}
               {data.candidates.map((c) => (
                 <option key={c.id} value={c.id}>{c.name}{c.onRoster ? "" : " (former)"}</option>
               ))}
@@ -89,14 +91,15 @@ export function WithoutStar() {
       </div>
 
       <BenchMinutes data={data} first={first} />
+      <SeasonTrend data={data} first={first} />
       <Teammates data={data} first={first} />
       <LineupsWithout data={data} first={first} />
       <MissedGames data={data} first={first} />
 
       <p className="text-xs text-text-faint">
-        Bench-minute numbers are NBA.com on/off and lineup totals, season to date
+        Bench-minute tables are NBA.com on/off and lineup totals, season to date
         {data.lastUpdated ? ` (refreshed ${format(new Date(data.lastUpdated), "MMM d, h:mm a")})` : ""}: the team with {first} off the floor = all team minutes minus his.
-        They aren&apos;t trended game by game, and teammates&apos; own points or usage during those minutes need play-by-play data the app doesn&apos;t store.
+        The season trend uses the same split for each game. Teammates&apos; own points or usage during those minutes need play-by-play data the app doesn&apos;t store.
       </p>
     </div>
   );
@@ -117,7 +120,7 @@ function splitRows(s: StarSplit): Row[] {
     { label: "Net rating", help: "ORtg − DRtg", off: off.netRtg, on: on.netRtg, fmt: fmtSigned },
     { label: "Pace/48", help: "Possessions per 48 minutes (lineup data has minutes)", off: off.pace, on: on.pace, fmt: (v) => fmtNum(v) },
     { label: "eFG%", help: "(FGM + 0.5·3PM) / FGA", off: off.efgPct, on: on.efgPct, fmt: fmtPct, diffFmt: pctDiff },
-    { label: "TS%", help: "PTS / (2·(FGA + 0.44·FTA))", off: s.tsOff, on: s.tsOn, fmt: fmtPct, diffFmt: pctDiff },
+    { label: "TS%", help: "PTS / (2·(FGA + 0.44·FTA))", off: off.tsPct, on: on.tsPct, fmt: fmtPct, diffFmt: pctDiff },
     { label: "3PA rate", help: "Share of shots that are threes", off: off.threePaRate, on: on.threePaRate, fmt: fmtPct, diffFmt: pctDiff },
     { label: "3P%", help: "Three-point percentage", off: off.threePct, on: on.threePct, fmt: fmtPct, diffFmt: pctDiff },
     { label: "FT rate", help: "Free-throw attempts per FGA", off: off.ftRate, on: on.ftRate, fmt: fmtPct, diffFmt: pctDiff },
@@ -223,6 +226,148 @@ function NetChart({ split, first }: { split: StarSplit; first: string }) {
         </ResponsiveContainer>
       </div>
     </figure>
+  );
+}
+
+// ── Season trend (per-game on/off) ───────────────────────────────────────────
+
+const WORSE = "#d64545";
+
+function trendRows(t: StarOffTrend) {
+  return t.points.map((p) => ({
+    ...p,
+    label: format(gameDay(p.gameDate), "MMM d"),
+  }));
+}
+type TrendRow = ReturnType<typeof trendRows>[number];
+
+function TrendTooltip({ active, payload, first, kind }: { active?: boolean; payload?: { payload: TrendRow }[]; first: string; kind: "lines" | "swing" }) {
+  const c = useThemeColors();
+  if (!active || !payload?.length) return null;
+  const p = payload[0].payload;
+  return (
+    <div className="space-y-0.5" style={{ backgroundColor: c.tooltipBg, border: `1px solid ${c.tooltipBorder}`, borderRadius: 8, fontSize: 12, padding: "8px 10px" }}>
+      <p className="font-semibold" style={{ color: c.tooltipLabel }}>{p.label} vs {p.opponentAbbr}</p>
+      <p className="text-text-secondary">{fmtNum(p.offMinutes, 0)} min without {first}{p.smallSample ? " (small sample)" : ""}</p>
+      {kind === "lines" ? (
+        <>
+          <p className="text-text-secondary">This game: {fmtSigned(p.offNet)} without · {fmtSigned(p.onNet)} with</p>
+          <p className="text-text-primary">Season to date: {fmtSigned(p.toDateOffNet)} without · {fmtSigned(p.toDateOnNet)} with</p>
+        </>
+      ) : (
+        <>
+          <p className="text-text-primary">Swing this game: {fmtSigned(p.swing)}</p>
+          <p className="text-text-secondary">5-game swing: {fmtSigned(p.rollingSwing)}</p>
+        </>
+      )}
+    </div>
+  );
+}
+
+function LegendKey({ children }: { children: ReactNode }) {
+  return <span className="flex items-center gap-1.5">{children}</span>;
+}
+
+function SeasonTrend({ data, first }: { data: StarOffData; first: string }) {
+  const c = useThemeColors();
+  const t = data.trend;
+  const title = `Season trend without ${first}`;
+  if (!data.split || data.split.off.error) return null;
+  if (!t) {
+    return (
+      <Section title={title}>
+        <EmptyState>Per-game on/off totals aren&apos;t loaded yet. Run <code>etl/refresh.py</code> from a home connection; its &quot;Lineup games&quot; step fills in every game played so far.</EmptyState>
+      </Section>
+    );
+  }
+  if (!t.points.length) {
+    return <Section title={title}><EmptyState>No games with {first} on the floor have per-game on/off totals yet.</EmptyState></Section>;
+  }
+  const rows = trendRows(t);
+  const axis = { tick: { fill: c.tick, fontSize: 11 }, tickLine: false } as const;
+  const signedTick = (v: number) => fmtSigned(v, 0);
+  const dot = (props: { cx?: number; cy?: number; payload?: TrendRow; index?: number }) => {
+    const { cx, cy, payload, index } = props;
+    if (cx == null || cy == null || payload?.offNet == null) return <g key={`d${index}`} />;
+    return payload.smallSample
+      ? <circle key={`d${index}`} cx={cx} cy={cy} r={4} fill="none" stroke={c.them} strokeOpacity={0.7} strokeWidth={1.25} />
+      : <circle key={`d${index}`} cx={cx} cy={cy} r={4} fill={c.them} fillOpacity={0.35} stroke={c.them} strokeOpacity={0.6} strokeWidth={1} />;
+  };
+  const last = t.points[t.points.length - 1];
+
+  return (
+    <Section
+      title={title}
+      subtitle={`NBA.com on/off for each game ${first} played (${t.gamesLoaded} of ${t.teamGames} team games loaded${t.gamesMissed ? `; the ${t.gamesMissed === 1 ? "game he missed isn't" : `${t.gamesMissed} games he missed aren't`} plotted` : ""}). Season-to-date and ${t.window}-game lines add up the games' totals, then compute the rating.`}
+    >
+      <div className="space-y-8">
+        <figure className="min-w-0">
+          <figcaption className="flex flex-wrap items-baseline justify-between gap-2 mb-2">
+            <span className="text-sm font-semibold text-text-primary">Net rating, season to date</span>
+            <span className="text-xs text-text-muted font-mono">now {fmtSigned(last.toDateOffNet)} without · {fmtSigned(last.toDateOnNet)} with</span>
+          </figcaption>
+          {t.gamesMissed > 0 && data.split.off.netRtg != null && (
+            <p className="text-xs text-text-muted mb-2">
+              Only his bench minutes in games he played. The {fmtSigned(data.split.off.netRtg)} in the table above also counts the{" "}
+              {t.gamesMissed === 1 ? "game" : `${t.gamesMissed} games`} he missed entirely.
+            </p>
+          )}
+          <div className="flex flex-wrap gap-4 text-xs text-text-secondary mb-2">
+            <LegendKey><span className="inline-block w-4 h-0.5 rounded" style={{ background: c.us }} />With {first}</LegendKey>
+            <LegendKey><span className="inline-block w-4 border-t-2 border-dashed" style={{ borderColor: c.them }} />Without {first}</LegendKey>
+            <LegendKey><span className="inline-block w-2 h-2 rounded-full" style={{ background: c.them, opacity: 0.4 }} />Single game without him</LegendKey>
+            <LegendKey><span className="inline-block w-2 h-2 rounded-full border" style={{ borderColor: c.them }} />Under {t.smallMinutes} min (small sample)</LegendKey>
+          </div>
+          <div className="h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <ComposedChart data={rows} margin={{ top: 8, right: 12, bottom: 0, left: -8 }}>
+                <CartesianGrid stroke={c.grid} vertical={false} />
+                <XAxis dataKey="label" {...axis} axisLine={{ stroke: c.axis }} interval="preserveStartEnd" minTickGap={16} />
+                <YAxis {...axis} axisLine={false} tickFormatter={signedTick} />
+                <ReferenceLine y={0} stroke={c.refLine} />
+                <Tooltip content={<TrendTooltip first={first} kind="lines" />} cursor={{ stroke: c.axis }} />
+                <Line dataKey="offNet" stroke="none" dot={dot} activeDot={false} isAnimationActive={false} legendType="none" />
+                <Line type="monotone" dataKey="toDateOnNet" stroke={c.us} strokeWidth={2} dot={false} connectNulls />
+                <Line type="monotone" dataKey="toDateOffNet" stroke={c.them} strokeWidth={2} strokeDasharray="6 4" dot={false} connectNulls />
+              </ComposedChart>
+            </ResponsiveContainer>
+          </div>
+        </figure>
+
+        <figure className="min-w-0">
+          <figcaption className="flex flex-wrap items-baseline justify-between gap-2 mb-2">
+            <span className="text-sm font-semibold text-text-primary">On/off swing, game by game</span>
+            <span className="text-xs text-text-muted">Net rating without {first} − with him</span>
+          </figcaption>
+          <div className="flex flex-wrap gap-4 text-xs text-text-secondary mb-2">
+            <LegendKey><span className="inline-block w-2.5 h-2.5 rounded-sm" style={{ background: WORSE }} />Worse without him</LegendKey>
+            <LegendKey><span className="inline-block w-2.5 h-2.5 rounded-sm" style={{ background: c.us }} />Better without him</LegendKey>
+            <LegendKey><span className="inline-block w-4 h-0.5 rounded" style={{ background: c.tick }} />{t.window}-game swing</LegendKey>
+            <LegendKey><span className="inline-block w-2.5 h-2.5 rounded-sm opacity-40" style={{ background: WORSE }} />Light bar: under {t.smallMinutes} min</LegendKey>
+          </div>
+          <div className="h-56">
+            <ResponsiveContainer width="100%" height="100%">
+              <ComposedChart data={rows} margin={{ top: 8, right: 12, bottom: 0, left: -8 }}>
+                <CartesianGrid stroke={c.grid} vertical={false} />
+                <XAxis dataKey="label" {...axis} axisLine={{ stroke: c.axis }} interval="preserveStartEnd" minTickGap={16} />
+                <YAxis {...axis} axisLine={false} tickFormatter={signedTick} />
+                <ReferenceLine y={0} stroke={c.refLine} />
+                <Tooltip content={<TrendTooltip first={first} kind="swing" />} cursor={{ fill: c.grid }} />
+                <Bar dataKey="swing" maxBarSize={22} radius={[3, 3, 3, 3]}>
+                  {rows.map((r) => (
+                    <Cell key={r.gameId} fill={(r.swing ?? 0) < 0 ? WORSE : c.us} fillOpacity={r.smallSample ? 0.35 : 0.9} />
+                  ))}
+                </Bar>
+                <Line type="monotone" dataKey="rollingSwing" stroke={c.tick} strokeWidth={2} dot={false} connectNulls />
+              </ComposedChart>
+            </ResponsiveContainer>
+          </div>
+          <p className="mt-2 text-xs text-text-faint">
+            A single game&apos;s bench stretch is often 10–20 minutes, so one bar can swing by 50+ points. Read the {t.window}-game line and the season-to-date chart for the trend.
+          </p>
+        </figure>
+      </div>
+    </Section>
   );
 }
 

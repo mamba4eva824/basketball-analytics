@@ -13,10 +13,14 @@
  *    he didn't play vs games he did. Only games on or after his first game for the team count, so a
  *    mid-season arrival's earlier games aren't "missed".
  *
+ * 3. Season trend (per-game NBA.com on/off, `LineupGroupGameStats`): the same team − player split
+ *    for each game, plus season-to-date and rolling-window lines built from summed totals.
+ *
  * Pure — /api/star-off queries. Spec: basketball-metrics skill → "When Luka sits".
  */
-import { SMALL_SAMPLE_MINUTES, comboLabel, comboRow, type ComboRow, type GroupTotals } from "./lineupCombos";
-import { buildTeamProfiles, div, type GameRecord } from "./teamProfiles";
+import { SMALL_SAMPLE_MINUTES, ZERO_TOTALS, combineTotals, comboLabel, comboMetrics, comboRow, type ComboRow, type GroupTotals } from "./lineupCombos";
+import { ROLLING_WINDOW } from "./trend";
+import { buildTeamProfiles, type GameRecord } from "./teamProfiles";
 import { playerMetricValues, type PlayerGameInput } from "./playerTrend";
 
 /** Luka Dončić — the default star for the section. */
@@ -28,11 +32,6 @@ export const TOP_GROUPS = 5;
 
 type Lookup = (key: string) => GroupTotals | undefined;
 
-/** True shooting: PTS / (2 · (FGA + 0.44 · FTA)). */
-export function tsPct(t: Pick<GroupTotals, "pts" | "fga" | "fta">): number | null {
-  return div(t.pts, 2 * (t.fga + 0.44 * t.fta));
-}
-
 export interface StarSplit {
   /** team with the star off the floor */
   off: ComboRow;
@@ -40,9 +39,6 @@ export interface StarSplit {
   on: ComboRow;
   /** the whole season, for scale */
   team: ComboRow;
-  /** TS% for each (ComboRow carries eFG% but not TS%) */
-  tsOff: number | null;
-  tsOn: number | null;
   /** share of the team's minutes played without the star */
   shareOff: number | null;
 }
@@ -59,21 +55,7 @@ export function starSplit(
   const off = comboRow(lookup, [], [starId], sizes, "without", comboLabel([], [starId], name, teamName), starId, coverage);
   const on = comboRow(lookup, [starId], [], sizes, "selection", comboLabel([starId], [], name, teamName), null, coverage);
   const team = comboRow(lookup, [], [], sizes, "team", comboLabel([], [], name, teamName), null, coverage);
-  const teamTotals = lookup("");
-  const starTotals = lookup(starId);
-  const offTotals = teamTotals && starTotals ? subtract(teamTotals, starTotals) : null;
-  return {
-    off,
-    on,
-    team,
-    tsOff: off.error || !offTotals ? null : tsPct(offTotals),
-    tsOn: on.error || !starTotals ? null : tsPct(starTotals),
-    shareOff: off.minutes != null && team.minutes ? off.minutes / team.minutes : null,
-  };
-}
-
-function subtract(a: GroupTotals, b: GroupTotals): Pick<GroupTotals, "pts" | "fga" | "fta"> {
-  return { pts: a.pts - b.pts, fga: a.fga - b.fga, fta: a.fta - b.fta };
+  return { off, on, team, shareOff: off.minutes != null && team.minutes ? off.minutes / team.minutes : null };
 }
 
 export interface TeammateSplit {
@@ -331,4 +313,95 @@ export function missedGames(teamId: string, starId: string, games: GameRecord[],
     teammates,
     standIns,
   };
+}
+
+// ── Season trend (per-game on/off) ───────────────────────────────────────────
+
+/** A game with fewer bench minutes than this is a small sample (drawn hollow / light). */
+export const OFF_GAME_SMALL_MINUTES = 8;
+/** Below this many minutes the star wasn't really off the floor (NBA.com minute rounding). */
+const MIN_OFF_MINUTES = 0.5;
+
+const sumTotals = (xs: GroupTotals[]) => xs.reduce((acc, t) => combineTotals(acc, t), ZERO_TOTALS);
+
+export interface TrendGameInput {
+  gameId: string;
+  gameDate: Date;
+  opponentId: string;
+  /** the game's NBA.com on/off rows: "" = team, player id = that player on the court */
+  groups: ReadonlyMap<string, GroupTotals>;
+}
+
+export interface StarTrendPoint {
+  gameId: string;
+  gameDate: Date;
+  opponentId: string;
+  /** minutes the star sat in this game */
+  offMinutes: number;
+  /** this game: net rating with him off / on; null when he barely sat (or ratings can't be computed) */
+  offNet: number | null;
+  onNet: number | null;
+  /** offNet − onNet */
+  swing: number | null;
+  /** under OFF_GAME_SMALL_MINUTES on the bench this game */
+  smallSample: boolean;
+  /** season to date through this game, from summed totals */
+  toDateOffNet: number | null;
+  toDateOnNet: number | null;
+  /** swing over the last ROLLING_WINDOW games he played, from summed totals */
+  rollingSwing: number | null;
+}
+
+export interface StarTrend {
+  points: StarTrendPoint[];
+  /** games after his first one, with per-game data, that the star didn't play (the "games he missed" lens covers them) */
+  gamesMissed: number;
+  window: number;
+}
+
+/**
+ * The star's on/off split game by game. Games without per-game rows are left out; games he
+ * didn't play are counted, not plotted. Season-to-date and rolling values sum the games' totals
+ * and then compute ratings (never an average of per-game ratings).
+ */
+export function starOffTrend(games: TrendGameInput[], starId: string, window = ROLLING_WINDOW): StarTrend {
+  const sorted = [...games].sort((a, b) => a.gameDate.getTime() - b.gameDate.getTime() || a.gameId.localeCompare(b.gameId));
+  const offs: GroupTotals[] = [];
+  const ons: GroupTotals[] = [];
+  const points: StarTrendPoint[] = [];
+  let gamesMissed = 0;
+  const net = (t: GroupTotals) => (t.minutes >= MIN_OFF_MINUTES ? comboMetrics(t).netRtg : null);
+  for (const g of sorted) {
+    const team = g.groups.get("");
+    if (!team) continue;
+    const on = g.groups.get(starId);
+    if (!on || on.minutes <= 0) {
+      // before his first game for the team he wasn't missing games (same rule as missedGames)
+      if (points.length) gamesMissed += 1;
+      continue;
+    }
+    const off = combineTotals(team, on, -1);
+    offs.push(off);
+    ons.push(on);
+    const offNet = net(off);
+    const onNet = net(on);
+    const recentOff = sumTotals(offs.slice(-window));
+    const recentOn = sumTotals(ons.slice(-window));
+    const rOff = net(recentOff);
+    const rOn = net(recentOn);
+    points.push({
+      gameId: g.gameId,
+      gameDate: g.gameDate,
+      opponentId: g.opponentId,
+      offMinutes: Math.max(0, off.minutes),
+      offNet,
+      onNet,
+      swing: offNet != null && onNet != null ? offNet - onNet : null,
+      smallSample: off.minutes < OFF_GAME_SMALL_MINUTES,
+      toDateOffNet: net(sumTotals(offs)),
+      toDateOnNet: net(sumTotals(ons)),
+      rollingSwing: rOff != null && rOn != null ? rOff - rOn : null,
+    });
+  }
+  return { points, gamesMissed, window };
 }

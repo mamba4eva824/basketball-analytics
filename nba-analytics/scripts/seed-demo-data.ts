@@ -200,6 +200,7 @@ async function main() {
   await prisma.shotChart.deleteMany()
   await prisma.lineupStats.deleteMany()
   await prisma.lineupGroupStats.deleteMany()
+  await prisma.lineupGroupGameStats.deleteMany()
   await prisma.standing.deleteMany()
   await prisma.teamEfficiencySnapshot.deleteMany()
   await prisma.teamGameEfficiency.deleteMany()
@@ -505,6 +506,22 @@ async function main() {
       oppPts: g.opp!.pts, oppFgm: g.opp!.fgm, oppFga: g.opp!.fga, oppFg3m: g.opp!.fg3m, oppFg3a: g.opp!.fg3a,
       oppFtm: g.opp!.ftm, oppFta: g.opp!.fta, oppOreb: g.opp!.oreb, oppDreb: g.opp!.dreb, oppTov: g.opp!.tov,
     })),
+  })
+  // "When Luka sits" trend: per-game team (size 0) + player-on-court (size 1) totals from the same stints
+  const gameDates = new Map(lalGames.map((g) => [g.gameId, g.gameDate]))
+  await prisma.lineupGroupGameStats.createMany({
+    data: lalGames.flatMap((game) =>
+      [...groupsFromStints(stints.filter((st) => st.gameId === game.gameId))]
+        .filter(([, g]) => g.size <= 1)
+        .map(([groupKey, g]) => ({
+          teamId: FOCUS_TEAM_ID, season: SEASON, seasonId: SEASON, gameId: game.gameId, gameDate: gameDates.get(game.gameId)!,
+          groupSize: g.size, groupKey, minutes: g.minutes,
+          pts: g.pts, fgm: g.fgm, fga: g.fga, fg3m: g.fg3m, fg3a: g.fg3a, ftm: g.ftm, fta: g.fta,
+          oreb: g.oreb, dreb: g.dreb, ast: g.ast, tov: g.tov, stl: g.stl, blk: g.blk, plusMinus: g.plusMinus,
+          oppPts: g.opp!.pts, oppFgm: g.opp!.fgm, oppFga: g.opp!.fga, oppFg3m: g.opp!.fg3m, oppFg3a: g.opp!.fg3a,
+          oppFtm: g.opp!.ftm, oppFta: g.opp!.fta, oppOreb: g.opp!.oreb, oppDreb: g.opp!.dreb, oppTov: g.opp!.tov,
+        })),
+    ),
   })
 
   // A couple of injuries: one Lakers player, one on the next opponent

@@ -80,6 +80,7 @@ model Team {
   shotCharts           ShotChart[]
   lineupStats          LineupStats[]
   lineupGroups         LineupGroupStats[]
+  lineupGroupGames     LineupGroupGameStats[]
   standings            Standing[]
   homeScheduledGames   ScheduledGame[]          @relation("HomeScheduledGames")
   awayScheduledGames   ScheduledGame[]          @relation("AwayScheduledGames")
@@ -156,6 +157,7 @@ model Season {
   shotCharts           ShotChart[]
   lineupStats          LineupStats[]
   lineupGroups         LineupGroupStats[]
+  lineupGroupGames     LineupGroupGameStats[]
   standings            Standing[]
   scheduledGames       ScheduledGame[]
 
@@ -709,6 +711,62 @@ model LineupGroupStats {
 
   @@unique([teamId, season, groupKey])
   @@index([teamId, season, groupSize])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// LINEUP GROUP GAME STATS — NBA.com on/off totals for ONE focus-team game ("When Luka
+// sits" trend): the team (groupSize 0) and each player on the court (1), from
+// TeamPlayerOnOffDetails with DateFrom = DateTo = the game date. Same columns as
+// LineupGroupStats, so "player off" = team − player works per game.
+// ─────────────────────────────────────────────────────────────────────────────
+
+model LineupGroupGameStats {
+  id        String   @id @default(cuid())
+  teamId    String
+  season    String                               // "2026-27"
+  seasonId  String                               // FK to Season
+  gameId    String                               // NBA game ID (GameBoxScore.gameId)
+  gameDate  DateTime
+  groupSize Int                                  // 0 team, 1 player on court
+  groupKey  String                               // player ID; "" for the team
+
+  minutes Float @default(0)
+
+  pts       Int @default(0)
+  fgm       Int @default(0)
+  fga       Int @default(0)
+  fg3m      Int @default(0)
+  fg3a      Int @default(0)
+  ftm       Int @default(0)
+  fta       Int @default(0)
+  oreb      Int @default(0)
+  dreb      Int @default(0)
+  ast       Int @default(0)
+  tov       Int @default(0)
+  stl       Int @default(0)
+  blk       Int @default(0)
+  plusMinus Int @default(0)
+
+  // opponents over the same minutes (MeasureType=Opponent); null if not fetched
+  oppPts  Int?
+  oppFgm  Int?
+  oppFga  Int?
+  oppFg3m Int?
+  oppFg3a Int?
+  oppFtm  Int?
+  oppFta  Int?
+  oppOreb Int?
+  oppDreb Int?
+  oppTov  Int?
+
+  team      Team   @relation(fields: [teamId], references: [id])
+  seasonRef Season @relation(fields: [seasonId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([teamId, gameId, groupKey])
+  @@index([teamId, season])
 }
 
 // ──────────────────────────────────────────────

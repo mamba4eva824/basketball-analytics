@@ -26,7 +26,7 @@ import type { BoxDriver, BoxStat, OnOffDriver, RatingStat } from "@/lib/analytic
 import type { PlayCall } from "@/lib/analytics/playCalls";
 import type { PlayerMetric } from "@/lib/analytics/playerTrend";
 import type { ScheduleEntry, ScheduleSummary } from "@/lib/analytics/schedule";
-import type { GameSetSummary, GroupsWithout, MissedGameRow, StandInStarter, StarSplit, TeammateGameSplit, TeammateSplit } from "@/lib/analytics/starOff";
+import type { GameSetSummary, GroupsWithout, MissedGameRow, StandInStarter, StarSplit, StarTrendPoint, TeammateGameSplit, TeammateSplit } from "@/lib/analytics/starOff";
 
 export type { FactorEdge, PlayerMetric, RankedMetric, RosterStatus, FormSummary, Trend };
 export type {
@@ -444,6 +444,25 @@ export interface StarMissedGames {
   standIns: StandInStarter[];
 }
 
+export interface StarTrendPointView extends Omit<StarTrendPoint, "gameDate" | "opponentId"> {
+  gameDate: string;
+  opponentAbbr: string;
+}
+
+/** The star's on/off split game by game (NBA.com per-game on/off). */
+export interface StarOffTrend {
+  points: StarTrendPointView[];
+  /** games with per-game data that he didn't play (not plotted) */
+  gamesMissed: number;
+  /** games in the rolling swing */
+  window: number;
+  /** bench minutes under which a game is a small sample */
+  smallMinutes: number;
+  /** focus-team games played / games with per-game on/off loaded */
+  teamGames: number;
+  gamesLoaded: number;
+}
+
 /** GET /api/star-off?player= — the team with one player (Luka Dončić by default) off the floor. */
 export interface StarOffData {
   season: SeasonInfo;
@@ -459,6 +478,8 @@ export interface StarOffData {
   teammates: TeammateSplit[];
   groups: GroupsWithout | null;
   missed: StarMissedGames;
+  /** null until per-game on/off (LineupGroupGameStats) is loaded for the season */
+  trend: StarOffTrend | null;
   dataNotes: string[];
   /** when the NBA.com group totals were last refreshed */
   lastUpdated: string | null;
