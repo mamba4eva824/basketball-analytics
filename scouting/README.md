@@ -24,3 +24,4 @@ Pre-game reports written with the `scouting-report` skill from `/api/matchup`, a
 | 2026-11-11 | Lakers @ Bucks | [2026-11-11-LAL-at-MIL.md](2026-11-11-LAL-at-MIL.md) (backfilled, as of Nov 11) | [W 123-112](2026-11-11-LAL-at-MIL-postgame.md) |
 | 2026-11-15 | Lakers @ Suns | [2026-11-15-LAL-at-PHX.md](2026-11-15-LAL-at-PHX.md) (written before tip-off, as of Nov 15) | [W 131-123](2026-11-15-LAL-at-PHX-postgame.md) |
 | 2026-11-17 | Hornets @ Lakers | [2026-11-17-CHA-at-LAL.md](2026-11-17-CHA-at-LAL.md) (backfilled, as of Nov 17) | [W 118-114 OT](2026-11-17-CHA-at-LAL-postgame.md) |
+| 2026-11-18 | Jazz @ Lakers | [2026-11-18-UTA-at-LAL.md](2026-11-18-UTA-at-LAL.md) (written before tip-off, as of Nov 18) | — |
