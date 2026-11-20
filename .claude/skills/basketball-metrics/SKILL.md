@@ -224,6 +224,30 @@ Rebuilt from the live play-by-play on each request; nothing is stored. Replaying
   (X off) and `S − p` with p off ("without"); then the whole team.
 - **Small sample**: under `SMALL_SAMPLE_MINUTES` (50) minutes together.
 
+## When Luka sits (`starOff.ts`, `/api/star-off`, `/without-luka`)
+
+The team with one player off the floor — Luka Dončić (`DEFAULT_STAR_ID` 1629029) unless another
+is picked (`?player=`). If he has no data that season, the team's minutes leader is shown, with a note.
+Two separate lenses; never merged:
+
+- **Bench minutes** (Lineup Lab totals, season to date, `comboRow`):
+  team without him = `T(team) − T(star)`; teammate P on, star off = `T(P) − T(P, star)`;
+  pair/trio G on, star off = `T(G) − T(G ∪ star)`; a five-man lineup without him is the NBA.com row
+  as is. Same ratings, Pace/48 and four factors as the Lab, plus TS% = `PTS / (2·(FGA + 0.44·FTA))`,
+  DREB% = `1 − opp OREB%`, +/- per 48 = `48 · ±/minutes`. On/off swing = net without − net with.
+  These are the **team's** numbers while a player is on the floor, never that player's own box score.
+  Teammates sort by net rating without him (≥ 50 min first; under 50 min tagged and listed after).
+  Pairs/trios need ≥ `SMALL_SAMPLE_MINUTES` (50) minutes without him; top/bottom `TOP_GROUPS` (5).
+  Fives: most minutes first, small samples tagged. Opponent four factors are not shown (not chosen).
+- **Games he missed** (game logs + box scores): team games, regular season, on or after his first
+  game for the team, where he logged no minutes (a DNP row or no row). Record, ORtg/DRtg/net/pace by
+  game set (`buildTeamProfiles`); each teammate's per-game PTS/REB/AST/MIN and TS%/USG% (player-trend
+  formulas, totals then divide) in missed vs played games. Stand-in starters: started a missed game
+  and started under half of his games. Fewer than `MISSED_GAMES_SMALL_SAMPLE` (5) missed games =
+  small sample.
+- Not available: teammates' own points/usage during his bench minutes (needs per-game
+  play-by-play stints), a game-by-game trend of the bench split, opponent-strength adjustment.
+
 ## Season progress (`seasonProgress.ts`, `/api/progress`, `/progress` + dashboard scorecard)
 
 Tracks the focus areas the team is working on through the season. Default focus metrics:

@@ -453,13 +453,21 @@ async function main() {
   const rotation = lal.slice(0, 10)
   const weight = rotation.map((_, i) => (i < 5 ? 3.2 : i < 8 ? 1.6 : 0.6)) // starters play most
   const impact = rotation.map((_, i) => (i === 0 ? 2.5 : i === 1 ? 1.5 : i === 2 ? 1 : between(-1.5, 1)))
-  const pickFive = () => {
+  // only players who logged minutes in that game take the floor (rest days and injuries sit out)
+  const playedIn = new Map<string, Set<string>>()
+  for (const l of logRows) {
+    if (l.teamId !== FOCUS_TEAM_ID || !l.minutes) continue
+    if (!playedIn.has(l.gameId)) playedIn.set(l.gameId, new Set())
+    playedIn.get(l.gameId)!.add(l.playerId)
+  }
+  const pickFive = (gameId: string) => {
     const chosen = new Set<number>()
+    const out = new Set(rotation.map((p, i) => (playedIn.get(gameId)?.has(p.id) ? -1 : i)).filter((i) => i >= 0))
     while (chosen.size < 5) {
-      const total = weight.reduce((a, w, i) => a + (chosen.has(i) ? 0 : w), 0)
+      const total = weight.reduce((a, w, i) => a + (chosen.has(i) || out.has(i) ? 0 : w), 0)
       let x = rand() * total
       for (let i = 0; i < rotation.length; i++) {
-        if (chosen.has(i)) continue
+        if (chosen.has(i) || out.has(i)) continue
         x -= weight[i]
         if (x <= 0) { chosen.add(i); break }
       }
@@ -476,7 +484,7 @@ async function main() {
   const stints: Stint[] = []
   for (const g of lalGames) {
     for (let k = 0; k < 14; k++) {
-      const five = pickFive()
+      const five = pickFive(g.gameId)
       const edge = five.reduce((a, i) => a + impact[i], 0)
       const minutes = 48 / 14
       const us = side(edge, minutes), them = side(-edge, minutes)
