@@ -12,6 +12,7 @@ reads it through Prisma and renders two primary dashboards in the browser:
 | `/matchup?view=postgame` | Post-game tab: saved post-game (and pre-game) reports from `scouting/`, rendered |
 | `/matchup?view=live` | In-game tab: live score, flow, four factors, box score, shots for today's game, plus in-game reports twice a quarter (6:00 and end of each period) |
 | `/progress`  | Season progress: pinned focus areas (default TOV%, OREB%, opp OREB%, DRtg, net) — league rank after every game, last 10 vs season, 10-game/month splits, strengths, weaknesses, movers, "Who's driving it" (player shares / on-off per focus metric); scorecard also on `/` |
+| `/without-luka` | When Luka sits: team, teammates and lineups with Luka Dončić off the floor (NBA.com on/off), plus the games he missed (`?player=` for anyone else) |
 | `/lineups`   | Lineup Lab: drag players on/off the floor to see how combinations do together (NBA.com 2–5-man group totals) |
 
 Supporting pages: `/schedule` (month calendar + list, rest days, back-to-backs), `/standings`, `/roster`, `/games`, `/players/[id]`, `/players/[id]/shots`, `/teams/[id]`.
@@ -32,6 +33,7 @@ nba-analytics/
   src/app/api/matchup/…       ← aggregate endpoint for `/matchup`
   src/app/api/live/…          ← today's game from the NBA live feed (proxied; no DB); /reports = checkpoint reports
   src/app/api/lineups/…       ← Lineup Lab: on/off combinations from LineupGroupStats
+  src/app/api/star-off/…      ← When Luka sits: one player off the floor (bench minutes + missed games)
   src/app/api/progress/…      ← season progress: rank history, focus scorecard, splits, movers; /drivers = players per metric
   src/app/api/reports/…       ← saved reports read from ../scouting/*.md (local checkout only)
   src/app/api/advanced/…      ← per-game team and player metric trends for `/advanced`
@@ -52,7 +54,7 @@ nba-analytics/
 npm run dev -- -p 4000                 # app at http://localhost:4000 (tests expect port 4000)
 npx prisma db push && npx prisma generate
 npx tsx scripts/seed-demo-data.ts      # synthetic data so the UI renders without the ETL
-etl-env/bin/python etl/refresh.py      # daily refresh, current season, league-wide (~56 API calls + ~1 per new focus-team game)
+etl-env/bin/python etl/refresh.py      # daily refresh, current season, league-wide (~56 API calls + ~3 per new focus-team game)
 etl-env/bin/python etl/run_all.py      # full multi-season backfill (slow, hundreds of calls)
 
 npx tsc --noEmit                       # typecheck

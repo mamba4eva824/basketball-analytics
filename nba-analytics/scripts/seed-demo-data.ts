@@ -200,6 +200,7 @@ async function main() {
   await prisma.shotChart.deleteMany()
   await prisma.lineupStats.deleteMany()
   await prisma.lineupGroupStats.deleteMany()
+  await prisma.lineupGroupGameStats.deleteMany()
   await prisma.standing.deleteMany()
   await prisma.teamEfficiencySnapshot.deleteMany()
   await prisma.teamGameEfficiency.deleteMany()
@@ -453,13 +454,21 @@ async function main() {
   const rotation = lal.slice(0, 10)
   const weight = rotation.map((_, i) => (i < 5 ? 3.2 : i < 8 ? 1.6 : 0.6)) // starters play most
   const impact = rotation.map((_, i) => (i === 0 ? 2.5 : i === 1 ? 1.5 : i === 2 ? 1 : between(-1.5, 1)))
-  const pickFive = () => {
+  // only players who logged minutes in that game take the floor (rest days and injuries sit out)
+  const playedIn = new Map<string, Set<string>>()
+  for (const l of logRows) {
+    if (l.teamId !== FOCUS_TEAM_ID || !l.minutes) continue
+    if (!playedIn.has(l.gameId)) playedIn.set(l.gameId, new Set())
+    playedIn.get(l.gameId)!.add(l.playerId)
+  }
+  const pickFive = (gameId: string) => {
     const chosen = new Set<number>()
+    const out = new Set(rotation.map((p, i) => (playedIn.get(gameId)?.has(p.id) ? -1 : i)).filter((i) => i >= 0))
     while (chosen.size < 5) {
-      const total = weight.reduce((a, w, i) => a + (chosen.has(i) ? 0 : w), 0)
+      const total = weight.reduce((a, w, i) => a + (chosen.has(i) || out.has(i) ? 0 : w), 0)
       let x = rand() * total
       for (let i = 0; i < rotation.length; i++) {
-        if (chosen.has(i)) continue
+        if (chosen.has(i) || out.has(i)) continue
         x -= weight[i]
         if (x <= 0) { chosen.add(i); break }
       }
@@ -476,7 +485,7 @@ async function main() {
   const stints: Stint[] = []
   for (const g of lalGames) {
     for (let k = 0; k < 14; k++) {
-      const five = pickFive()
+      const five = pickFive(g.gameId)
       const edge = five.reduce((a, i) => a + impact[i], 0)
       const minutes = 48 / 14
       const us = side(edge, minutes), them = side(-edge, minutes)
@@ -497,6 +506,22 @@ async function main() {
       oppPts: g.opp!.pts, oppFgm: g.opp!.fgm, oppFga: g.opp!.fga, oppFg3m: g.opp!.fg3m, oppFg3a: g.opp!.fg3a,
       oppFtm: g.opp!.ftm, oppFta: g.opp!.fta, oppOreb: g.opp!.oreb, oppDreb: g.opp!.dreb, oppTov: g.opp!.tov,
     })),
+  })
+  // "When Luka sits" trend: per-game team (size 0) + player-on-court (size 1) totals from the same stints
+  const gameDates = new Map(lalGames.map((g) => [g.gameId, g.gameDate]))
+  await prisma.lineupGroupGameStats.createMany({
+    data: lalGames.flatMap((game) =>
+      [...groupsFromStints(stints.filter((st) => st.gameId === game.gameId))]
+        .filter(([, g]) => g.size <= 1)
+        .map(([groupKey, g]) => ({
+          teamId: FOCUS_TEAM_ID, season: SEASON, seasonId: SEASON, gameId: game.gameId, gameDate: gameDates.get(game.gameId)!,
+          groupSize: g.size, groupKey, minutes: g.minutes,
+          pts: g.pts, fgm: g.fgm, fga: g.fga, fg3m: g.fg3m, fg3a: g.fg3a, ftm: g.ftm, fta: g.fta,
+          oreb: g.oreb, dreb: g.dreb, ast: g.ast, tov: g.tov, stl: g.stl, blk: g.blk, plusMinus: g.plusMinus,
+          oppPts: g.opp!.pts, oppFgm: g.opp!.fgm, oppFga: g.opp!.fga, oppFg3m: g.opp!.fg3m, oppFg3a: g.opp!.fg3a,
+          oppFtm: g.opp!.ftm, oppFta: g.opp!.fta, oppOreb: g.opp!.oreb, oppDreb: g.opp!.dreb, oppTov: g.opp!.tov,
+        })),
+    ),
   })
 
   // A couple of injuries: one Lakers player, one on the next opponent

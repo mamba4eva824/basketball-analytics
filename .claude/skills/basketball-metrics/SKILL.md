@@ -224,6 +224,39 @@ Rebuilt from the live play-by-play on each request; nothing is stored. Replaying
   (X off) and `S − p` with p off ("without"); then the whole team.
 - **Small sample**: under `SMALL_SAMPLE_MINUTES` (50) minutes together.
 
+## When Luka sits (`starOff.ts`, `/api/star-off`, `/without-luka`)
+
+The team with one player off the floor — Luka Dončić (`DEFAULT_STAR_ID` 1629029) unless another
+is picked (`?player=`). If he has no data that season, the team's minutes leader is shown, with a note.
+Two separate lenses; never merged:
+
+- **Bench minutes** (Lineup Lab totals, season to date, `comboRow`):
+  team without him = `T(team) − T(star)`; teammate P on, star off = `T(P) − T(P, star)`;
+  pair/trio G on, star off = `T(G) − T(G ∪ star)`; a five-man lineup without him is the NBA.com row
+  as is. Same ratings, Pace/48 and four factors as the Lab, plus TS% = `PTS / (2·(FGA + 0.44·FTA))`,
+  DREB% = `1 − opp OREB%`, +/- per 48 = `48 · ±/minutes`. On/off swing = net without − net with.
+  These are the **team's** numbers while a player is on the floor, never that player's own box score.
+  Teammates sort by net rating without him (≥ 50 min first; under 50 min tagged and listed after).
+  Pairs/trios need ≥ `SMALL_SAMPLE_MINUTES` (50) minutes without him; top/bottom `TOP_GROUPS` (5).
+  Fives: most minutes first, small samples tagged. Opponent four factors are not shown (not chosen).
+- **Games he missed** (game logs + box scores): team games, regular season, on or after his first
+  game for the team, where he logged no minutes (a DNP row or no row). Record, ORtg/DRtg/net/pace by
+  game set (`buildTeamProfiles`); each teammate's per-game PTS/REB/AST/MIN and TS%/USG% (player-trend
+  formulas, totals then divide) in missed vs played games. Stand-in starters: started a missed game
+  and started under half of his games. Fewer than `MISSED_GAMES_SMALL_SAMPLE` (5) missed games =
+  small sample.
+- **Season trend** (`starOffTrend`, `LineupGroupGameStats`, ETL `fetch_lineup_games.py`):
+  NBA.com `TeamPlayerOnOffDetails` with `DateFrom = DateTo =` each game date gives that game's team
+  (size 0) and player-on-court (size 1) totals; off = team − star per game. Games he didn't play
+  are counted, not plotted. Per game: net rating without / with, swing = without − with; under
+  `OFF_GAME_SMALL_MINUTES` (8) bench minutes = small sample (hollow dot / light bar); under 0.5
+  minutes = no off rating (he never sat). Season-to-date and the `ROLLING_WINDOW` (5)-game swing sum
+  the games' totals, then compute ratings — never an average of per-game ratings — so the last
+  season-to-date point equals the season split over the games he played. A game whose NBA.com team
+  totals cover < 47.5 minutes isn't stored yet (retried next refresh); games from the last 3 days are re-fetched for NBA.com corrections. Games before his first game for the team aren't counted as missed. TS% is part of `comboMetrics` (every Lineup Lab row carries it).
+- Not available: teammates' own points/usage during his bench minutes (needs per-game
+  play-by-play stints), opponent-strength adjustment.
+
 ## Season progress (`seasonProgress.ts`, `/api/progress`, `/progress` + dashboard scorecard)
 
 Tracks the focus areas the team is working on through the season. Default focus metrics:
@@ -273,7 +306,7 @@ The players behind each focus metric that has a player breakdown (`DRIVER_FOR`):
 - **On/off drivers**: the Lineup Lab's `comboRow` for (player on) and (player off), season to date
   from NBA.com on/off totals. Impact = on − off, signed so + is better (DRtg flipped). Fewer than
   50 minutes on or off = small sample; never off the floor → no impact ("never off the floor"). On/off mixes in teammates;
-  read it alongside the Lineup Lab. Not trended over time (NBA.com on/off is season-to-date only).
+  read it alongside the Lineup Lab. Not trended over time here (season-to-date only; per-game on/off exists only for the "When Luka sits" trend).
 - **Per-game player advanced** (`PlayerGameLog` usageRate, off/def/net rating, AST%, REB%, pace,
   TS%, eFG%) are NBA.com's own per-game numbers from `BoxScoreAdvancedV3` (refresh "Player advanced"
   step); they feed the player pages' game-by-game trends. They are per-game values — don't average

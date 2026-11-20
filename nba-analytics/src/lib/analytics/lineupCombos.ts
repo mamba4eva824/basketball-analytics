@@ -94,6 +94,8 @@ export interface ComboRow {
   /** possessions per 48 minutes (lineup data has minutes, unlike game box scores: "Pace/48") */
   pace: number | null;
   efgPct: number | null;
+  /** PTS / (2·(FGA + 0.44·FTA)) */
+  tsPct: number | null;
   tovPct: number | null;
   orebPct: number | null;
   ftRate: number | null;
@@ -159,13 +161,21 @@ export function validateSelection(on: string[], off: string[]): string | null {
   return null;
 }
 
-const ZERO: GroupTotals = {
+export const ZERO_TOTALS: GroupTotals = {
   gamesPlayed: 0, minutes: 0, pts: 0, fgm: 0, fga: 0, fg3m: 0, fg3a: 0, ftm: 0, fta: 0, oreb: 0, dreb: 0, ast: 0, tov: 0, stl: 0, blk: 0, plusMinus: 0,
   opp: { pts: 0, fgm: 0, fga: 0, fg3m: 0, fg3a: 0, ftm: 0, fta: 0, oreb: 0, dreb: 0, tov: 0 },
 };
 
-const NUM_KEYS = ["minutes", "pts", "fgm", "fga", "fg3m", "fg3a", "ftm", "fta", "oreb", "dreb", "ast", "tov", "stl", "blk", "plusMinus"] as const;
-const OPP_KEYS = ["pts", "fgm", "fga", "fg3m", "fg3a", "ftm", "fta", "oreb", "dreb", "tov"] as const;
+export const NUM_KEYS = ["minutes", "pts", "fgm", "fga", "fg3m", "fg3a", "ftm", "fta", "oreb", "dreb", "ast", "tov", "stl", "blk", "plusMinus"] as const;
+export const OPP_KEYS = ["pts", "fgm", "fga", "fg3m", "fg3a", "ftm", "fta", "oreb", "dreb", "tov"] as const;
+
+/** a + sign·b, field by field; opponent totals null if either side lacks them. Games aren't additive (0). */
+export function combineTotals(a: GroupTotals, b: GroupTotals, sign: 1 | -1 = 1): GroupTotals {
+  const out: GroupTotals = { ...a, gamesPlayed: 0, opp: a.opp && b.opp ? { ...a.opp } : null };
+  for (const k of NUM_KEYS) out[k] = a[k] + sign * b[k];
+  if (out.opp && b.opp) for (const k of OPP_KEYS) out.opp[k] += sign * b.opp[k];
+  return out;
+}
 
 /**
  * Totals with every player in `on` on the floor and every player in `off` off it.
@@ -182,14 +192,14 @@ export function comboTotals(
   if (invalid) return { totals: null, error: invalid, warning: null };
 
   const terms = subsets(off);
-  const sum: GroupTotals = { ...ZERO, opp: { ...ZERO.opp! } };
+  const sum: GroupTotals = { ...ZERO_TOTALS, opp: { ...ZERO_TOTALS.opp! } };
   const thin = new Set<number>();
   for (const a of terms) {
     const size = on.length + a.length;
     if (!sizes.has(size)) return { totals: null, error: `NBA.com ${SIZE_NAMES[size]} aren't loaded for this season yet — run the ETL refresh.`, warning: null };
     // a group missing from an incomplete list isn't really zero; only matters when we subtract
     if (off.length && size >= 1 && (coverage.get(size) ?? 1) < MIN_COVERAGE) thin.add(size);
-    const g = lookup(groupKey([...on, ...a])) ?? ZERO;
+    const g = lookup(groupKey([...on, ...a])) ?? ZERO_TOTALS;
     const sign = a.length % 2 === 0 ? 1 : -1;
     for (const k of NUM_KEYS) sum[k] += sign * g[k];
     if (sum.opp && g.opp) for (const k of OPP_KEYS) sum.opp[k] += sign * g.opp[k];
@@ -226,6 +236,7 @@ export function comboMetrics(t: GroupTotals) {
     netRtg: offRtg != null && defRtg != null ? offRtg - defRtg : null,
     pace: ok && t.minutes >= 1 ? (poss! * 48) / t.minutes : null,
     efgPct: efg(t),
+    tsPct: div(t.pts, 2 * (t.fga + 0.44 * t.fta)),
     tovPct: tovPct(t),
     orebPct: opp ? orebPct(t, opp) : null,
     ftRate: div(t.fta, t.fga),
@@ -241,7 +252,7 @@ export function comboMetrics(t: GroupTotals) {
 
 const EMPTY_METRICS = {
   minutes: null, pts: null, oppPts: null, plusMinus: null, poss: null, offRtg: null, defRtg: null, netRtg: null, pace: null,
-  efgPct: null, tovPct: null, orebPct: null, ftRate: null, threePaRate: null, threePct: null, astPct: null,
+  efgPct: null, tsPct: null, tovPct: null, orebPct: null, ftRate: null, threePaRate: null, threePct: null, astPct: null,
   oppEfgPct: null, oppTovPct: null, oppOrebPct: null, oppFtRate: null,
 };
 
@@ -340,7 +351,7 @@ export function groupsFromStints(stints: Stint[]): Map<string, GroupTotals & { s
       const key = groupKey(sub);
       let g = out.get(key);
       if (!g) {
-        g = { ...ZERO, opp: { ...ZERO.opp! }, size: sub.length, games: new Set() };
+        g = { ...ZERO_TOTALS, opp: { ...ZERO_TOTALS.opp! }, size: sub.length, games: new Set() };
         out.set(key, g);
       }
       for (const k of NUM_KEYS) g[k] += s.totals[k];

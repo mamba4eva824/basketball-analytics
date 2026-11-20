@@ -7,6 +7,7 @@
  *   GET /api/lineups                  → LineupLabData
  *   GET /api/progress                 → SeasonProgressData
  *   GET /api/progress/drivers         → PlayerDriversData
+ *   GET /api/star-off                 → StarOffData
  *   GET /api/schedule                 → ScheduleData
  *   GET /api/advanced/team/[teamId]   → AdvancedTeamData
  *   GET /api/reports                  → ReportMeta[]
@@ -25,6 +26,7 @@ import type { BoxDriver, BoxStat, OnOffDriver, RatingStat } from "@/lib/analytic
 import type { PlayCall } from "@/lib/analytics/playCalls";
 import type { PlayerMetric } from "@/lib/analytics/playerTrend";
 import type { ScheduleEntry, ScheduleSummary } from "@/lib/analytics/schedule";
+import type { GameSetSummary, GroupsWithout, MissedGameRow, StandInStarter, StarSplit, StarTrendPoint, TeammateGameSplit, TeammateSplit } from "@/lib/analytics/starOff";
 
 export type { FactorEdge, PlayerMetric, RankedMetric, RosterStatus, FormSummary, Trend };
 export type {
@@ -413,6 +415,74 @@ export interface PlayerDriversData {
   onOff: Record<RatingStat, OnOffDriver[]> | null;
   onOffUpdated: string | null;
   dataNotes: string[];
+}
+
+// ── /api/star-off ────────────────────────────────────────────────────────────
+
+export interface StarOffCandidate extends DriverPlayer {
+  /** season minutes on the floor (NBA.com on/off), for the picker */
+  minutes: number;
+}
+
+export interface MissedGameView extends Omit<MissedGameRow, "gameDate" | "opponentId"> {
+  gameDate: string;
+  opponent: TeamRefLite;
+}
+
+export interface StarMissedGames {
+  /** the star logged minutes for the team this season */
+  starPlayed: boolean;
+  /** team games before his first game for the team — not counted as missed */
+  gamesBeforeArrival: number;
+  withStar: GameSetSummary;
+  withoutStar: GameSetSummary;
+  /** fewer than 5 missed games */
+  smallSample: boolean;
+  /** newest first */
+  games: MissedGameView[];
+  teammates: TeammateGameSplit[];
+  standIns: StandInStarter[];
+}
+
+export interface StarTrendPointView extends Omit<StarTrendPoint, "gameDate" | "opponentId"> {
+  gameDate: string;
+  opponentAbbr: string;
+}
+
+/** The star's on/off split game by game (NBA.com per-game on/off). */
+export interface StarOffTrend {
+  points: StarTrendPointView[];
+  /** games with per-game data that he didn't play (not plotted) */
+  gamesMissed: number;
+  /** games in the rolling swing */
+  window: number;
+  /** bench minutes under which a game is a small sample */
+  smallMinutes: number;
+  /** focus-team games played / games with per-game on/off loaded */
+  teamGames: number;
+  gamesLoaded: number;
+}
+
+/** GET /api/star-off?player= — the team with one player (Luka Dončić by default) off the floor. */
+export interface StarOffData {
+  season: SeasonInfo;
+  teamId: string;
+  /** the player whose bench minutes and missed games are shown; null when nobody has data */
+  star: StarOffCandidate | null;
+  /** players with on-court data this season, most minutes first */
+  candidates: StarOffCandidate[];
+  /** names for every id in teammates, groups and stand-ins */
+  players: Record<string, DriverPlayer>;
+  /** bench minutes: null until the Lineup Lab's group totals are loaded */
+  split: StarSplit | null;
+  teammates: TeammateSplit[];
+  groups: GroupsWithout | null;
+  missed: StarMissedGames;
+  /** null until per-game on/off (LineupGroupGameStats) is loaded for the season */
+  trend: StarOffTrend | null;
+  dataNotes: string[];
+  /** when the NBA.com group totals were last refreshed */
+  lastUpdated: string | null;
 }
 
 // ── /api/schedule ────────────────────────────────────────────────────────────

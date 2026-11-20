@@ -42,6 +42,7 @@ database rather than a throwaway container.
 | Lineups | `TeamDashLineups` (focus team) | `LineupStats` |
 | Player advanced | `BoxScoreAdvancedV3` per focus-team game missing usage (~1 call per new game; first run backfills) | `PlayerGameLog` usage, off/def/net rating, AST%, REB%, pace, TS%, eFG% (both teams) |
 | Lineup groups | `TeamDashLineups` GroupQuantity 2–5 + `TeamPlayerOnOffDetails`, Base + Opponent (focus team, 10 calls) | `LineupGroupStats` (Lineup Lab) |
+| Lineup games | `TeamPlayerOnOffDetails` Base + Opponent with DateFrom = DateTo = game date, focus-team games not loaded yet plus any from the last 3 days, for NBA.com corrections (2 calls each; first run backfills the season; a game whose Base or Opponent call fails is retried next run) | `LineupGroupGameStats` ("When Luka sits" trend) |
 | Shot charts | `ShotChartDetail` ×1 (focus team, whole season; replaces each game's shots, keeps only games already in `GameBoxScore`; `--skip-shots`) | `ShotChart` |
 | Injuries (optional) | ESPN site API ×1 | `PlayerInjury` |
 
